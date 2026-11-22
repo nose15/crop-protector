@@ -216,7 +216,9 @@ Pełna lista zależności przechodnich jest w `frontend/package-lock.json`.
 | react-leaflet | Hippocratic License 2.1 — licencja z klauzulą etyczną, inna niż MIT/BSD. Dotyczy biblioteki mapy, nie danych KOWR. Przed ewentualnym wdrożeniem produkcyjnym warto ją osobno przejrzeć |
 | Krój Atkinson Hyperlegible Next | SIL Open Font License 1.1 |
 
-Kod prototypu powstał w trakcie wydarzenia. Przeniesienie praw do rozwiązania zwycięskiego reguluje regulamin zadania (§ 5), nie ten plik.
+Kod prototypu (backend i frontend) jest na licencji [MIT](LICENSE), Copyright (c) 2026 Łukasz. Licencja obejmuje kod w tym repozytorium. Dane i zapisy cache zostają przy warunkach z tabeli powyżej. Krój Atkinson Hyperlegible Next zostaje na SIL OFL 1.1, a `react-leaflet` na Hippocratic License 2.1.
+
+Kod powstał w trakcie wydarzenia. Przeniesienie praw do rozwiązania zwycięskiego reguluje regulamin zadania (§ 5). Licencja MIT tych praw nie przenosi.
 
 ## 8. Ograniczenia
 
