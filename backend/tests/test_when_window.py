@@ -166,8 +166,9 @@ def test_forecast_now_and_r16_keep_their_wording():
         evidence=[Evidence(field="forecast.days_to_raw.median", value=20)])
     kept = clip(forecast, date(2026, 11, 1), date(2026, 12, 1))
     assert kept.when_short == "przed końcem czerwca" and kept.when_text == forecast.when_text
-    now = _card("IRR", when_short="teraz", when_text="Teraz: w glebie już brakuje wody dla roślin.")
+    now = _card("IRR", when_short="1 stycznia 2026", when_text="1 stycznia 2026: w glebie już brakuje wody dla roślin.")
     kept_now = clip(now, date(2026, 1, 1), date(2026, 1, 31))
-    assert kept_now.when_short == "teraz"
-    assert kept_now.when_text == "Teraz: w glebie już brakuje wody dla roślin."
+    assert kept_now is not None
+    assert kept_now.when_short == "1 stycznia 2026"
+    assert kept_now.when_text == "1 stycznia 2026: w glebie już brakuje wody dla roślin."
     assert clip(_card("R16"), date(2026, 5, 1), date(2026, 5, 31)).rule == "R16"

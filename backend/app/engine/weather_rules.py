@@ -195,7 +195,8 @@ def _rules(ctx, req, out: WeatherOutcome, c1, c2, c3, c4) -> None:
                 rec.when_text = ri["when_text"].format(when_text=plain.when(d + timedelta(days=int(dtr["median"]))))
                 rec.when_short = plain.when(d + timedelta(days=int(dtr["median"])))
             elif sw["below_raw"]:
-                rec.when_text = "Teraz: w glebie już brakuje wody dla roślin."
-                rec.when_short = "teraz"
+                L = plain.day_label(d)
+                rec.when_short = L
+                rec.when_text = f"{L}: w glebie już brakuje wody dla roślin."
             rec.id = "nawadnianie"
             out.recommendations.append(rec)

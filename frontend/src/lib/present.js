@@ -41,6 +41,24 @@ export function formatDateLong(isoDate) {
   return `${day} ${month} ${year}`;
 }
 
+/** Dzień kalendarzowy Europe/Warsaw jako RRRR-MM-DD. */
+export function warsawTodayIso(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Warsaw",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/** „Dzisiaj”, gdy isoDate jest dniem Europe/Warsaw; inaczej formatDateLong. Zły i pusty napis → "". */
+export function dayLabel(isoDate, todayIso = warsawTodayIso()) {
+  if (isoDate === todayIso) return "Dzisiaj";
+  return formatDateLong(isoDate);
+}
+
 /** „22.11.2026” albo „2.1.2026” → "2026-11-22" / "2026-01-02". Inna maska i nieistniejący dzień → null. */
 export function parsePlDate(text) {
   if (typeof text !== "string") return null;

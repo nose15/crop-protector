@@ -3,7 +3,8 @@ Liczby zostają w polach wyniku i w rozwijanych szczegółach; tutaj tylko słow
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 MONTH_GEN = ["", "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września",
              "października", "listopada", "grudnia"]
@@ -122,3 +123,16 @@ def headline_parts(kbw: dict, fc: dict, sus: dict, d: date) -> tuple[str | None,
         hint = parts[key_i + 1]
         more = [hint] + [p for i, p in enumerate(parts) if i != key_i and i != key_i + 1]
     return parts[key_i], more
+
+
+def warsaw_today() -> date:
+    return datetime.now(ZoneInfo("Europe/Warsaw")).date()
+
+
+def day_label(d: date, today: date | None = None) -> str:
+    """„Dzisiaj”, gdy dzień jest dniem kalendarzowym Europe/Warsaw; inaczej „21 marca 2024”."""
+    if today is None:
+        today = warsaw_today()
+    if d == today:
+        return "Dzisiaj"
+    return f"{d.day} {MONTH_GEN[d.month]} {d.year}"

@@ -7,7 +7,7 @@ import Seg from "./Seg.jsx";
 import Sources from "./Sources.jsx";
 import ScienceSources from "./ScienceSources.jsx";
 import {
-  CAUSE, CONF, CROP_NAME, GROUP, fmt, formatDate, gauge, kbwBar, nextDays, seasonNote, topActions, verdict,
+  CAUSE, CONF, CROP_NAME, GROUP, dayLabel, fmt, formatDate, gauge, kbwBar, nextDays, seasonNote, topActions, verdict,
 } from "../lib/present.js";
 
 const SOIL = { I: "bardzo lekka (piaszczysta)", II: "lekka", III: "średnia", IV: "ciężka", organic: "organiczna" };
@@ -380,7 +380,7 @@ export default function ResultView({ parcel, request, result, context, answers, 
       <details className="det"><summary>Woda na polu<span className="sub">{g ? (g.stressed ? "brakuje" : "zapas jest") : "—"}</span></summary>
         <div className="body">
           <dl className="kv">
-            {g && <><dt>Woda w glebie teraz</dt><dd>{g.stressed ? "poniżej granicy stresu" : "powyżej granicy stresu"}</dd></>}
+            {g && <><dt>Woda w glebie {dayLabel(request.range.from)}</dt><dd>{g.stressed ? "poniżej granicy stresu" : "powyżej granicy stresu"}</dd></>}
             {sw && <><dt>Etap uprawy</dt><dd>{sw.phase_label}</dd></>}
             {k.kbw_mm != null && <><dt>Opady minus parowanie</dt><dd>{fmt(k.kbw_mm)} mm{k.threshold_mm != null ? ` (próg suszy ${fmt(k.threshold_mm)} mm)` : ""}</dd></>}
             {f?.status === "ok" && <><dt>Brak wody w wybranym okresie</dt><dd>w {f.stress_chance.n} z 10 lat</dd></>}
