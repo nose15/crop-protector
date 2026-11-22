@@ -7,6 +7,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
+from app.engine.terrain_rules import RULES
 from app.engine.weather import shift_year
 from app.main import app
 from app.terrain import analysis as A
@@ -44,20 +45,52 @@ def test_ok_and_invariants(context):
     groups = [x["group"] for x in res["recommendations"]]
     order = {"retencja": 0, "agrotechnika": 1, "nawadnianie": 2}
     assert groups == sorted(groups, key=order.get)                  # retencja → agrotechnika → nawadnianie
-    assert 1 <= len(res["recommendations"]) <= 5
+    assert len(res["recommendations"]) <= 5                                # rada poza zakresem nie zajmuje karty
     assert all(x["evidence"] for x in res["recommendations"])
     assert all(x["confidence_reason"] for x in res["recommendations"])      # każda pewność ma wyjaśnienie
     assert all(x["title"] for x in res["recommendations"])                  # każda rada ma krótki tytuł
-    assert res["recommendations"][0]["rule"] == "R11"
     assert {c["code"] for c in res["causes"]} == {"C1", "C2", "C3", "C4"}
     assert 1 <= len(res["uncertainty"]["reasons"]) <= 4
     assert any(n["rule"] == "R14" for n in res["not_evaluated"])
 
 
 def test_site_answer_roundtrip(context):
-    res = client.post("/api/recommend", json=body(context, sites={"ditch0": True})).json()
+    res = client.post("/api/recommend", json=body(
+        context, date(2026, 2, 1), date(2026, 4, 30), sites={"ditch0": True})).json()
     r11 = next(x for x in res["recommendations"] if x["rule"] == "R11")
     assert r11["conditional"] is False and r11["confidence"] == "wysoka"
+    assert r11["when_short"] == RULES["R11"]["when_short"]
+
+
+def test_may_range_hides_weir(context):
+    """Maj–maj jednego roku nie zawiera lutego–marca."""
+    res = client.post("/api/recommend", json=body(context, date(2026, 5, 1), date(2026, 5, 31))).json()
+    banned = RULES["R11"]["when_short"]
+    assert "R11" not in [x["rule"] for x in res["recommendations"]]
+    assert all(banned not in (x.get("when_short") or "") and banned not in (x.get("when_text") or "")
+               for x in res["recommendations"])
+    assert all(n["rule"] != "R11" for n in res["not_evaluated"])
+    groups = [x["group"] for x in res["recommendations"]]
+    order = {"retencja": 0, "agrotechnika": 1, "nawadnianie": 2}
+    assert groups == sorted(groups, key=order.get)
+    sw = res["state"]["soil_water"]
+    if sw:
+        for key in ("taw_mm", "dr_mm", "pct_of_taw", "below_raw", "safe_level_pct"):
+            assert key in sw
+
+
+def test_february_april_keeps_weir_chip(context):
+    res = client.post("/api/recommend", json=body(context, date(2026, 2, 1), date(2026, 4, 30))).json()
+    assert res["recommendations"][0]["rule"] == "R11"
+    assert res["recommendations"][0]["when_short"] == RULES["R11"]["when_short"]
+
+
+def test_two_year_may_range_keeps_weir_chip(context):
+    """Koniec równy shift_year(from, 2) jest legalny i obejmuje luty–marzec lat pomiędzy."""
+    r = client.post("/api/recommend", json=body(context, date(2026, 5, 1), date(2028, 5, 1)))
+    assert r.status_code == 200, r.text
+    r11 = next(x for x in r.json()["recommendations"] if x["rule"] == "R11")
+    assert r11["when_short"] == RULES["R11"]["when_short"]
 
 
 def test_november_analysis(context):

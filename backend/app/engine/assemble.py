@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app.engine import plain, terrain_rules, weather_rules
+from app.engine import plain, terrain_rules, weather_rules, when_window
 from app.engine.confidence import min_conf
 from app.models import AnalysisResult, Cause, NotEvaluated, ParcelContext, RecommendRequest
 
@@ -93,7 +93,7 @@ def build(ctx: ParcelContext, req: RecommendRequest) -> AnalysisResult:
     c1, c4 = w.causes
     causes = [c1, c2, terr.c3, c4]
 
-    recs = sorted(terr.recommendations + w.recommendations,
+    recs = sorted(when_window.apply(terr.recommendations + w.recommendations, ctx, req),
                   key=lambda r: (GROUP_ORDER[r.group], terrain_rules.RULES[r.rule]["priority"]))
     shown, hidden = recs[:MAX_CARDS], recs[MAX_CARDS:]
     if any(r.group == "nawadnianie" for r in hidden):          # nawadnianie zawsze widoczne, ale ostatnie
