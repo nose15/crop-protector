@@ -225,12 +225,20 @@ export default function App() {
           <div className="prose">
             <h2>Jak liczymy</h2>
             <p>Każdą liczbę i każdą radę liczy program na podstawie danych o Twojej działce; nic nie jest zgadywane.</p>
+            <h3>Kolejność oceny</h3>
+            <ol>
+              <li><b>Ocena sytuacji wodnej</b> sprawdza, ile wody zostało w glebie i jaki jest bilans opadu i parowania.</li>
+              <li><b>Identyfikacja przyczyn</b> wskazuje, dlaczego wody brakuje.</li>
+              <li><b>Rekomendacje retencyjne</b> są pierwsze i dotyczą zatrzymania wody na polu.</li>
+              <li><b>Działania agrotechniczne</b> są kolejne i dotyczą zabiegów w uprawie.</li>
+              <li><b>Ewentualne nawadnianie</b> zostaje na końcu i nie zawsze jest wśród rad.</li>
+            </ol>
             <ol>
               <li><b>Działka</b> z rejestru ULDK (GUGiK): granica i powierzchnia.</li>
               <li><b>Pogoda z 10 lat</b> i prognoza na 16 dni (Open-Meteo, ERA5): opad, parowanie, temperatura.</li>
               <li><b>Gleba</b>: kategoria podatności na suszę (IUNG-PIB) i właściwości wodne (SoilGrids).</li>
               <li><b>Teren</b> z modelu wysokości 1 m (GUGiK): spadki, spływ wody, rowy i zagłębienia.</li>
-              <li><b>Woda w glebie</b> liczona dzień po dniu metodą FAO-56; próg suszy z rozporządzenia (Dz.U. 2019 poz. 739).</li>
+              <li><b>Woda w glebie</b> liczona dzień po dniu metodą FAO-56; próg suszy z rozporządzenia (Dz.U. 2019 poz. 739). Próg suszy bierzemy z rozporządzenia (Dz.U. 2019 poz. 739), ale parowanie liczymy wzorem ET0 FAO Penman-Monteith z Open-Meteo, a nie wzorem ETP IUNG z urzędowego monitoringu suszy, więc wskazane u nas zagrożenie jest przybliżeniem, a nie komunikatem urzędowym.</li>
               <li><b>Wybrany okres</b>: pogoda z prognozy, a dalej z tych samych dni w 10 poprzednich latach („w ilu z 10 lat zabraknie wody”).</li>
               <li><b>Rady</b> w stałej kolejności: najpierw zatrzymanie wody na polu, potem zabiegi w uprawie, na końcu nawadnianie.</li>
             </ol>
