@@ -382,7 +382,7 @@ export default function ResultView({ parcel, request, result, context, answers, 
           <dl className="kv">
             {g && <><dt>Woda w glebie {dayLabel(request.range.from)}</dt><dd>{g.stressed ? "poniżej granicy stresu" : "powyżej granicy stresu"}</dd></>}
             {sw && <><dt>Etap uprawy</dt><dd>{sw.phase_label}</dd></>}
-            {k.kbw_mm != null && <><dt>Opady minus parowanie</dt><dd>{fmt(k.kbw_mm)} mm{k.threshold_mm != null ? ` (próg suszy ${fmt(k.threshold_mm)} mm)` : ""}</dd></>}
+            {k.kbw_mm != null && <><dt>Bilans opadu i parowania{k.period?.label ? ` (${k.period.label})` : ""}</dt><dd>{fmt(k.kbw_mm)} mm{k.threshold_mm != null ? ` (próg suszy ${fmt(k.threshold_mm)} mm)` : ""}</dd></>}
             {f?.status === "ok" && <><dt>Brak wody w wybranym okresie</dt><dd>w {f.stress_chance.n} z 10 lat</dd></>}
             {f?.status === "ok" && f.days_to_raw?.n > 0 && <><dt>Zapas może się skończyć</dt><dd>za ok. {fmt(f.days_to_raw.median)} dni</dd></>}
             {f?.status === "ok" && f.deficit_m3?.high >= 1 && <><dt>Ile wody może zabraknąć</dt><dd>do ok. {fmt(f.deficit_m3.high)} m³ na działkę</dd></>}
