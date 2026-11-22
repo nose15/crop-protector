@@ -20,6 +20,14 @@ const QUESTIONS = [
   ["irrigation_water", "Masz wodę do nawadniania (studnia, zbiornik, ciek)?"],
 ];
 
+function warningLabel(n) {
+  if (n === 1) return "1 ostrzeżenie";
+  const last = n % 10;
+  const hundred = n % 100;
+  if (last >= 2 && last <= 4 && (hundred < 12 || hundred > 14)) return `${n} ostrzeżenia`;
+  return `${n} ostrzeżeń`;
+}
+
 function WaterChart({ series, taw }) {
   if (!Array.isArray(series) || series.length === 0 || taw?.high == null) return null;
   const yMax = taw.high;
@@ -162,7 +170,6 @@ function Action({ r, no, sites, onSiteAnswer, onFocus }) {
 
 export default function ResultView({ parcel, request, result, context, answers, onAnswers, onRecompute, onSiteAnswer, onFocus }) {
   const [openCause, setOpenCause] = useState(null);
-  const certRef = useRef(null);
   const v = verdict(result);
   const g = gauge(result.state.soil_water);
   const kb = kbwBar(result.state.kbw);
@@ -176,8 +183,14 @@ export default function ResultView({ parcel, request, result, context, answers, 
   const sNote = seasonNote(request.range.from);
   const more = result.state.headline_more || [];
   const outOfGrowth = f?.status === "poza_sezonem_uprawy";
-  const growthHint = outOfGrowth ? more[0] : null;
   const moreNote = outOfGrowth ? more.slice(1) : more;
+  const growthState = outOfGrowth ? result.state.headline_key : null;
+  const growthHint = outOfGrowth ? more[0] : null;
+  const reasons = result.uncertainty.reasons;
+  const skipped = result.not_evaluated;
+  const limits = result.limitations;
+  const warnCount = [sNote, growthState, growthHint].filter(Boolean).length
+    + reasons.length + skipped.length + limits.length;
   const t = context?.terrain?.stats;
   const iung = context?.soil?.iung;
   const sat = context?.satellite;
@@ -196,12 +209,6 @@ export default function ResultView({ parcel, request, result, context, answers, 
     return () => { window.removeEventListener("beforeprint", before); window.removeEventListener("afterprint", after); };
   }, []);
 
-  const openCert = () => {
-    if (certRef.current) {
-      certRef.current.open = true;
-      certRef.current.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-    }
-  };
   const downloadJson = () => {
     const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `ocena-${parcel.id}.json` });
@@ -220,15 +227,37 @@ export default function ResultView({ parcel, request, result, context, answers, 
       {parcel.found_by === "adres" && (
         <p className="note">Działka pod adresem {parcel.address}. Jeśli Twoje pole jest obok, kliknij „Zmień działkę” i wskaż je na mapie.</p>
       )}
-      {sNote && <p className="note warn" role="status">{sNote}</p>}
 
       <section className={`verdict ${v.level}`} aria-labelledby="verdict-h">
         <span className="vstatus"><StatusIcon level={v.level} />{v.label}</span>
         <h1 id="verdict-h">{v.title}</h1>
-        {growthHint && <p className="small">{growthHint}</p>}
         {g ? <Gauge g={g} /> : <p className="gauge-cap">Brak oceny wody w glebie (brak danych o glebie albo pogodzie od 1 marca).</p>}
       </section>
       {moreNote.length > 0 && <p className="note">{moreNote.join(" ")}</p>}
+
+      <details className="det">
+        <summary>
+          Pewność danych
+          <span className={`badge ${result.uncertainty.overall}`}>{CONF[result.uncertainty.overall]}</span>
+          {warnCount > 0 && <span className="sub">{warningLabel(warnCount)}</span>}
+        </summary>
+        <div className="body">
+          <ul className="reasons">
+            {sNote && <li key="season">{sNote}</li>}
+            {growthState && <li key="growth-state">{growthState}</li>}
+            {growthHint && <li key="growth-hint">{growthHint}</li>}
+            {reasons.map((x) => <li key={x}>{x}</li>)}
+          </ul>
+          {skipped.length > 0 && (
+            <>
+              <p><b>Nie sprawdziliśmy:</b></p>
+              <ul className="reasons">{skipped.map((x) => <li key={x.rule}>{x.title || "działanie"} – {x.reason}.</li>)}</ul>
+            </>
+          )}
+          <p><b>O czym pamiętać:</b></p>
+          <ul className="reasons">{limits.map((x) => <li key={x}>{x}</li>)}</ul>
+        </div>
+      </details>
 
       <h2 className="sec-title">Dlaczego</h2>
       {dominant.length === 0 && <p className="small muted">Nie widać jednej głównej przyczyny niedoboru wody.</p>}
@@ -278,11 +307,6 @@ export default function ResultView({ parcel, request, result, context, answers, 
             <div className="fv" style={{ fontSize: "1rem" }}>{nd}</div>
           </div>
         )}
-      </div>
-
-      <div className="confline">
-        <span>Pewność wyniku <span className={`badge ${result.uncertainty.overall}`}>{CONF[result.uncertainty.overall]}</span></span>
-        <button type="button" className="linkbtn" onClick={openCert}>dlaczego?</button>
       </div>
 
       <details className="det refine">
@@ -358,20 +382,6 @@ export default function ResultView({ parcel, request, result, context, answers, 
             {t && <><dt>Woda spływa z sąsiednich pól</dt><dd>z co najmniej {fmt(t.inflow_from_outside_ha, 1)} ha</dd></>}
             {sat?.obs?.length > 1 && <><dt>Rośliny na zdjęciach satelitarnych</dt><dd>wilgotność {satTrend(sat.obs)}</dd></>}
           </dl>
-        </div>
-      </details>
-
-      <details className="det" ref={certRef}><summary>Pewność i ograniczenia<span className="sub">pewność {CONF[result.uncertainty.overall]}</span></summary>
-        <div className="body">
-          <ul className="reasons">{result.uncertainty.reasons.map((x) => <li key={x}>{x}</li>)}</ul>
-          {result.not_evaluated.length > 0 && (
-            <>
-              <p><b>Nie sprawdziliśmy:</b></p>
-              <ul className="reasons">{result.not_evaluated.map((x) => <li key={x.rule}>{x.title || "działanie"} – {x.reason}.</li>)}</ul>
-            </>
-          )}
-          <p><b>O czym pamiętać:</b></p>
-          <ul className="reasons">{result.limitations.map((x) => <li key={x}>{x}</li>)}</ul>
         </div>
       </details>
 
