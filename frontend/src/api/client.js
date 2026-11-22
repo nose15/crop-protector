@@ -63,6 +63,29 @@ export function recommend(context, request) {
   return call("/api/recommend", { method: "POST", body: JSON.stringify(body) });
 }
 
+/** Raport PDF z gotowego wyniku: backend składa plik, przeglądarka go zapisuje. Zwraca nazwę pliku. */
+export async function downloadReportPdf(result, parcel) {
+  let res;
+  try {
+    res = await fetch(API_BASE + "/api/report.pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ result, parcel }),
+    });
+  } catch {
+    throw new ApiError(0, "network", "Brak połączenia z serwerem aplikacji. Spróbuj ponownie za chwilę.");
+  }
+  if (!res.ok) throw new ApiError(res.status, "http", `Nie udało się przygotować PDF (błąd ${res.status}).`);
+  const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") || "")?.[1] || `raport-${parcel?.id || "dzialka"}.pdf`;
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement("a"), { href: url, download: name });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return name;
+}
+
 export function summarize(result) {
   return call("/api/summary", { method: "POST", body: JSON.stringify(result) });
 }

@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { CauseIcon, StatusIcon } from "./Icons.jsx";
 import OverlayFrame from "./OverlayFrame.jsx";
 import Seg from "./Seg.jsx";
+import { downloadReportPdf } from "../api/client.js";
 import Sources from "./Sources.jsx";
 import ScienceSources from "./ScienceSources.jsx";
 import {
@@ -244,6 +245,18 @@ export default function ResultView({ parcel, request, result, context, answers, 
     return () => { window.removeEventListener("beforeprint", before); window.removeEventListener("afterprint", after); };
   }, []);
 
+  // PDF składa backend z tego samego wyniku (POST /api/report.pdf); tu tylko stan przycisku i komunikat błędu
+  const [pdfState, setPdfState] = useState({ busy: false, error: null });
+  const downloadPdf = async () => {
+    setPdfState({ busy: true, error: null });
+    try {
+      await downloadReportPdf(result, parcel);
+      setPdfState({ busy: false, error: null });
+    } catch (e) {
+      setPdfState({ busy: false, error: e.message });
+    }
+  };
+
   const downloadJson = () => {
     const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `ocena-${parcel.id}.json` });
@@ -380,10 +393,14 @@ export default function ResultView({ parcel, request, result, context, answers, 
       <div className="det-head">
         <h2>Szczegóły</h2>
         <div className="tools-row">
-          <button type="button" className="sbtn" onClick={() => window.print()}>Drukuj / PDF</button>
+          <button type="button" className="sbtn" onClick={downloadPdf} disabled={pdfState.busy} aria-busy={pdfState.busy}>
+            {pdfState.busy ? "Przygotowuję PDF…" : "Pobierz PDF"}
+          </button>
+          <button type="button" className="sbtn" onClick={() => window.print()}>Drukuj</button>
           <button type="button" className="sbtn" onClick={downloadJson}>Dane</button>
         </div>
       </div>
+      {pdfState.error && <p className="small" role="alert">{pdfState.error}</p>}
 
       <details className="det"><summary>Woda na polu<span className="sub">{g ? (g.stressed ? "brakuje" : "zapas jest") : "—"}</span></summary>
         <div className="body">
