@@ -15,6 +15,14 @@ const satTrend = (obs) => {
   const d = obs[obs.length - 1].ndmi - obs[0].ndmi;
   return d > 0.05 ? "rośnie" : d < -0.05 ? "spada" : "bez wyraźnej zmiany";
 };
+function sortedCauses(list) {
+  const conf = { wysoka: 0, srednia: 1, niska: 2, nie_oceniono: 3 };
+  const code = { C1: 0, C2: 1, C3: 2, C4: 3 };
+  return [...list].sort((a, b) =>
+    (Number(b.dominant) - Number(a.dominant))
+    || (conf[a.confidence] - conf[b.confidence])
+    || (code[a.code] - code[b.code]));
+}
 const QUESTIONS = [
   ["ditch_with_weir", "Przy działce jest rów z zastawką?"],
   ["drained", "Działka jest drenowana?"],
@@ -204,7 +212,7 @@ export default function ResultView({ parcel, request, result, context, answers, 
   const startRaw = showChart ? sw.series[0].raw_mm.median : null;
   const startRel = startLevel < startRaw ? "poniżej progu" : startLevel > startRaw ? "powyżej progu" : "na równi z progiem";
   const k = result.state.kbw || {};
-  const dominant = result.causes.filter((c) => c.dominant);
+  const dominant = sortedCauses(result.causes.filter((c) => c.dominant));
   const opened = result.causes.find((c) => c.code === openCause);
   const top = topActions(result.recommendations);
   const sNote = seasonNote(request.range.from);
@@ -395,7 +403,7 @@ export default function ResultView({ parcel, request, result, context, answers, 
 
       <details className="det"><summary>Przyczyny<span className="sub">{dominant.length} {dominant.length === 1 ? "główna" : "główne"}</span></summary>
         <div className="body">
-          {result.causes.filter((c) => c.confidence !== "nie_oceniono").map((c) => (
+          {sortedCauses(result.causes.filter((c) => c.confidence !== "nie_oceniono")).map((c) => (
             <div className="sub-card" key={c.code}>
               <h4>{CAUSE[c.code].short} <span className={`pill ${c.dominant ? "dominujaca" : "brak"}`}>{c.dominant ? "główna" : "mniej ważna"}</span></h4>
               <p className="small">{c.why}</p>
