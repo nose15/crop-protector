@@ -94,6 +94,7 @@ function WaterChart({ series, taw }) {
           <path key={`d${i}`} d={line(pts)} fill="none" stroke="var(--water)" strokeWidth="2.6" strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
         ))}
         {n === 1 && <circle cx={X(0)} cy={Y(series[0].level_mm.median)} r="3.2" fill="var(--water)" />}
+        <line x1={X(0)} x2={X(0)} y1={pad.t} y2={H - pad.b} stroke="var(--ink)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
         {ticks.map((i, k) => (
           <text key={series[i].date} x={X(i)} y={H - 6}
             textAnchor={ticks.length === 1 ? "middle" : k === 0 ? "start" : k === ticks.length - 1 ? "end" : "middle"}>
@@ -107,28 +108,6 @@ function WaterChart({ series, taw }) {
         <span><i className="line raw" aria-hidden="true" />RAW</span>
       </div>
     </>
-  );
-}
-
-function Gauge({ g }) {
-  const label = `Zostało ${fmt(g.taw - g.dr)} z ${fmt(g.taw)} mm wody dostępnej dla roślin. Brakuje ${fmt(g.dr)} mm`
-    + (g.raw != null ? `, rośliny cierpią przy braku powyżej ${fmt(g.raw)} mm.` : ".");
-  return (
-    <div className="gauge" role="img" aria-label={label}>
-      <div className="gauge-bar">
-        <div className="gauge-fill" style={{ width: `${g.fill}%` }} />
-        {g.mark != null && <div className="gauge-mark" style={{ left: `calc(${g.mark}% - 1px)` }} />}
-      </div>
-      <div className="gauge-scale">
-        <span>pusto</span>
-        {g.mark != null && <span className="gm" style={{ left: `${Math.min(80, Math.max(20, g.mark))}%` }}>granica stresu</span>}
-        <span>pełno</span>
-      </div>
-      <p className="gauge-cap">
-        W glebie brakuje <b>{fmt(g.dr)} mm</b> wody.
-        {g.raw != null && <> Rośliny cierpią, gdy brakuje więcej niż <b>{fmt(g.raw)} mm</b>{g.stressed ? " – i to już się dzieje." : "."}</>}
-      </p>
-    </div>
   );
 }
 
@@ -177,6 +156,10 @@ export default function ResultView({ parcel, request, result, context, answers, 
   const s = result.susceptibility;
   const f = result.forecast;
   const sw = result.state.soil_water;
+  const showChart = Array.isArray(sw?.series) && sw.series.length > 0 && sw.taw_mm?.high != null;
+  const startLevel = showChart ? sw.series[0].level_mm.median : null;
+  const startRaw = showChart ? sw.series[0].raw_mm.median : null;
+  const startRel = startLevel < startRaw ? "poniżej progu" : startLevel > startRaw ? "powyżej progu" : "na równi z progiem";
   const k = result.state.kbw || {};
   const dominant = result.causes.filter((c) => c.dominant);
   const top = topActions(result.recommendations);
@@ -231,7 +214,18 @@ export default function ResultView({ parcel, request, result, context, answers, 
       <section className={`verdict ${v.level}`} aria-labelledby="verdict-h">
         <span className="vstatus"><StatusIcon level={v.level} />{v.label}</span>
         <h1 id="verdict-h">{v.title}</h1>
-        {g ? <Gauge g={g} /> : <p className="gauge-cap">Brak oceny wody w glebie (brak danych o glebie albo pogodzie od 1 marca).</p>}
+        {showChart ? (
+          <div className="timeline inpanel">
+            <div className="tl-body">
+              <WaterChart series={sw.series} taw={sw.taw_mm} />
+              <p className="gauge-cap">
+                Na początku zakresu w glebie jest <b>{fmt(startLevel)} mm</b> wody, {startRel} RAW (<b>{fmt(startRaw)} mm</b>).
+              </p>
+            </div>
+          </div>
+        ) : g == null ? (
+          <p className="gauge-cap">Brak oceny wody w glebie (brak danych o glebie albo pogodzie od 1 marca).</p>
+        ) : null}
       </section>
       {moreNote.length > 0 && <p className="note">{moreNote.join(" ")}</p>}
 
@@ -331,7 +325,7 @@ export default function ResultView({ parcel, request, result, context, answers, 
         </div>
       </div>
 
-      <details className="det" open><summary>Woda na polu<span className="sub">{g ? (g.stressed ? "brakuje" : "zapas jest") : "—"}</span></summary>
+      <details className="det"><summary>Woda na polu<span className="sub">{g ? (g.stressed ? "brakuje" : "zapas jest") : "—"}</span></summary>
         <div className="body">
           <dl className="kv">
             {g && <><dt>Woda w glebie teraz</dt><dd>{g.stressed ? "poniżej granicy stresu" : "powyżej granicy stresu"}</dd></>}
@@ -341,13 +335,6 @@ export default function ResultView({ parcel, request, result, context, answers, 
             {f?.status === "ok" && f.days_to_raw?.n > 0 && <><dt>Zapas może się skończyć</dt><dd>za ok. {fmt(f.days_to_raw.median)} dni</dd></>}
             {f?.status === "ok" && f.deficit_m3?.high >= 1 && <><dt>Ile wody może zabraknąć</dt><dd>do ok. {fmt(f.deficit_m3.high)} m³ na działkę</dd></>}
           </dl>
-          {Array.isArray(sw?.series) && sw.series.length > 0 && sw.taw_mm?.high != null && (
-            <div className="timeline inpanel">
-              <div className="tl-body">
-                <WaterChart series={sw.series} taw={sw.taw_mm} />
-              </div>
-            </div>
-          )}
           {s?.per_year && (
             <p className="small">Lata z niedoborem wody w kluczowym okresie: {s.per_year.filter((y) => (y.stress_days_critical ?? 0) >= 10).map((y) => y.year).join(", ") || "brak"}.</p>
           )}

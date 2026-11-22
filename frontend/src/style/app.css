@@ -25,6 +25,8 @@
 .det.refine .body .sbtn { margin-top: 10px; }
 .qa .q > span:first-child { min-width: 0; }
 .verdict h1 { text-wrap: balance; }
+.verdict .timeline.inpanel { margin-top: 0; }
+.verdict .timeline.inpanel .tl-body .chart { height: 220px; }
 .refs { margin: 4px 0 0 18px; padding: 0; display: grid; gap: 8px; font-size: .9rem; color: var(--ink-2); }
 .refs b { color: var(--ink); }
 .prose ol { padding-left: 20px; }
@@ -34,6 +36,8 @@
   #map, .topbar, .map-fade, .maplegend, .season-hint, .skip { display: none !important; }
   .panel { position: static; width: auto; box-shadow: none; overflow: visible; }
   .panel details { display: block; }
+  .verdict { break-inside: avoid; }
+  .verdict .timeline.inpanel .tl-body .chart { height: 280px; }
 }
 
 /* po zablokowaniu działki karta ma 2/5 viewportu, nie węziej niż 420 px; poniżej 901 px zostaje stos */
