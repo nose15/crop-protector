@@ -10,6 +10,7 @@ import { ErrorState, Loading, Welcome } from "./components/PanelStates.jsx";
 import ScienceSources from "./components/ScienceSources.jsx";
 import OverlayFrame from "./components/OverlayFrame.jsx";
 import { defaultRequest, iso, seasonNote, verdict } from "./lib/present.js";
+import { useKeepAwake } from "./lib/keepAwake.js";
 
 // Styl „Pole z lotu ptaka”: mapa na cały ekran, szklany pasek z wyszukiwarką, panel „najpierw krótko, szczegóły na żądanie”.
 // Dwa widoki:
@@ -41,6 +42,7 @@ export default function App() {
   const seq = useRef(0);
   const contextCache = useRef(new Map());
   const topRef = useRef(null);
+  useKeepAwake();                                    // lokalnie: budzi backend na Renderze co 10 min
 
   // dostępność: rozmiar tekstu (17/19/21 px) i wysoki kontrast na <html>, zapamiętane w przeglądarce
   useEffect(() => {
