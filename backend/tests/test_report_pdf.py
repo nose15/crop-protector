@@ -40,7 +40,7 @@ def _text(pdf: bytes) -> bytes:
     while (i := pdf.find(b"stream\n", i)) != -1:
         j = pdf.find(b"endstream", i)
         try:
-            out += zlib.decompress(pdf[i + 7:j].strip())
+            out += zlib.decompressobj().decompress(pdf[i + 7:j])   # nadmiar po strumieniu ignorowany
         except zlib.error:
             pass
         i = j
