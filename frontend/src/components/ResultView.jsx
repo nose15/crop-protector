@@ -174,6 +174,10 @@ export default function ResultView({ parcel, request, result, context, answers, 
   const dominant = result.causes.filter((c) => c.dominant);
   const top = topActions(result.recommendations);
   const sNote = seasonNote(request.range.from);
+  const more = result.state.headline_more || [];
+  const outOfGrowth = f?.status === "poza_sezonem_uprawy";
+  const growthHint = outOfGrowth ? more[0] : null;
+  const moreNote = outOfGrowth ? more.slice(1) : more;
   const t = context?.terrain?.stats;
   const iung = context?.soil?.iung;
   const sat = context?.satellite;
@@ -221,9 +225,10 @@ export default function ResultView({ parcel, request, result, context, answers, 
       <section className={`verdict ${v.level}`} aria-labelledby="verdict-h">
         <span className="vstatus"><StatusIcon level={v.level} />{v.label}</span>
         <h1 id="verdict-h">{v.title}</h1>
+        {growthHint && <p className="small">{growthHint}</p>}
         {g ? <Gauge g={g} /> : <p className="gauge-cap">Brak oceny wody w glebie (brak danych o glebie albo pogodzie od 1 marca).</p>}
       </section>
-      {result.state.headline_more?.length > 0 && <p className="note">{result.state.headline_more.join(" ")}</p>}
+      {moreNote.length > 0 && <p className="note">{moreNote.join(" ")}</p>}
 
       <h2 className="sec-title">Dlaczego</h2>
       {dominant.length === 0 && <p className="small muted">Nie widać jednej głównej przyczyny niedoboru wody.</p>}

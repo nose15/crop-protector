@@ -107,8 +107,8 @@ def headline_parts(kbw: dict, fc: dict, sus: dict, d: date) -> tuple[str | None,
             s += f", najpewniej {since(d + timedelta(days=int(dtr['median'])))}"
         parts.append(s + ".")
     elif fc.get("status") == "poza_sezonem_uprawy":
-        parts.append("Wybrany okres wypada poza sezonem wzrostu tej uprawy. Wydłuż zakres dat do wiosny, "
-                     "żeby zobaczyć, czy na początku sezonu zabraknie wody.")
+        parts.append("Wybrany okres jest poza sezonem wzrostu tej uprawy.")
+        parts.append("Wydłuż zakres dat do wiosny, żeby zobaczyć, czy na początku sezonu zabraknie wody.")
     if sus.get("n_ks") is not None:
         s = f"Na tym polu niedobory wody w czasie wzrostu {frequency(sus['n_ks'], sus['of'])}"
         if sus.get("risk_months") and sus["n_ks"] / max(sus["of"], 1) > 0.2:
@@ -117,4 +117,8 @@ def headline_parts(kbw: dict, fc: dict, sus: dict, d: date) -> tuple[str | None,
     if not parts:
         return None, []
     key_i = next((i for i, p in enumerate(parts) if p.startswith("W wybranym okresie") or p.startswith("Wybrany okres")), 0)
-    return parts[key_i], [p for i, p in enumerate(parts) if i != key_i]
+    more = [p for i, p in enumerate(parts) if i != key_i]
+    if fc.get("status") == "poza_sezonem_uprawy" and key_i + 1 < len(parts):
+        hint = parts[key_i + 1]
+        more = [hint] + [p for i, p in enumerate(parts) if i != key_i and i != key_i + 1]
+    return parts[key_i], more

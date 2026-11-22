@@ -7,6 +7,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
+from app.engine.assemble import BASE_LIMITATIONS
 from app.engine.terrain_rules import RULES
 from app.engine.weather import shift_year
 from app.main import app
@@ -177,11 +178,24 @@ def test_out_of_season_headline_without_six_months(context):
     assert r.status_code == 200, r.text
     res = r.json()
     assert res["forecast"]["status"] == "poza_sezonem_uprawy"
+    state = "Wybrany okres jest poza sezonem wzrostu tej uprawy."
+    hint = "Wydłuż zakres dat do wiosny, żeby zobaczyć, czy na początku sezonu zabraknie wody."
+    assert res["state"]["headline_key"] == state
+    assert "Wydłuż" not in res["state"]["headline_key"]
+    assert res["state"]["headline_more"][0] == hint
+    assert not any(
+        "Wybrany okres jest poza sezonem" in item and "Wydłuż zakres" in item
+        for item in res["state"]["headline_more"]
+    )
+    assert state in res["state"]["headline"] and hint in res["state"]["headline"]
     tech = res["state"]["headline_technical"]
-    assert "Wydłuż zakres dat do wiosny, żeby zobaczyć ryzyko na początku sezonu." in tech
+    assert state in tech and hint in tech
+    assert "poza sezonem monitoringu" in tech
     assert "6 miesięcy" not in tech
-    assert ("Wybrany okres wypada poza sezonem wzrostu tej uprawy. Wydłuż zakres dat do wiosny, "
-            "żeby zobaczyć, czy na początku sezonu zabraknie wody.") in res["state"]["headline"]
+    assert "wypada poza sezonem" not in tech
+    assert "ryzyko na początku sezonu" not in tech
+    for sentence in BASE_LIMITATIONS:
+        assert sentence in res["limitations"]
 
 
 def test_unknown_crop_422(context):
