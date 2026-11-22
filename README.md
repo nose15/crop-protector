@@ -16,7 +16,7 @@ Aplikacja:
 2. zbiera pogodę z 10 lat, glebę, teren, cieki i wskaźnik satelitarny;
 3. liczy stan wody i podatność wieloletnią dla wybranej uprawy i zakresu dat;
 4. podaje przyczyny i działania z dowodem z tej działki, pewnością i ograniczeniami;
-5. pozwala wydrukować raport albo zapisać go jako PDF z przeglądarki.
+5. pozwala pobrać raport jako plik PDF albo go wydrukować.
 
 Korzyść dla rolnika: jedna odpowiedź w języku gospodarstwa (ile wody, dlaczego, co zrobić i kiedy), bez obsługi usług WCS, STAC i bilansu wodnego. Inwestycje (zastawka, oczko, nawadnianie) zawsze z dopiskiem o konsultacji z ODR, spółką wodną albo Wodami Polskimi.
 
@@ -45,7 +45,7 @@ npm run dev
 
 Sprawdzenie: `cd backend && pytest` oraz `cd frontend && npm run build`.
 
-W przeglądarce: wpisać numer, na przykład `046101_1.0445.7`, albo kliknąć działkę na mapie, wybrać uprawę i zakres dat, potem **Sprawdź działkę**. Działka przykładowa jest w zapisie startowym (`backend/app/data/seed_cache/`), więc wynik pojawia się od razu, bez zapytań do usług. Inna działka z terenu Polski jest liczona na żywo: zwykle 5–20 s na zebranie danych, potem poniżej sekundy na rekomendacje. Raport: przycisk **Drukuj / PDF**.
+W przeglądarce: wpisać numer, na przykład `046101_1.0445.7`, albo kliknąć działkę na mapie, wybrać uprawę i zakres dat, potem **Sprawdź działkę**. Działka przykładowa jest w zapisie startowym (`backend/app/data/seed_cache/`), więc wynik pojawia się od razu, bez zapytań do usług. Inna działka z terenu Polski jest liczona na żywo: zwykle 5–20 s na zebranie danych, potem poniżej sekundy na rekomendacje. Raport: przycisk **Pobierz PDF** (plik składa backend z tego samego wyniku, który widać na ekranie) albo **Drukuj**. Pierwsza strona PDF to proste dane i opisy, bez wykresów: werdykt, trzy liczby, „Co się dzieje”, „Dlaczego” i „Co zrobić” (kiedy i jak). Kolejne strony to szczegóły z wykresami (woda w glebie, brak wody w 10 latach, bilans opadu i parowania w sezonie), rozwinięcie problemów, pełny opis działań, odpowiedzi i ograniczenia.
 
 Inny port backendu: `BACKEND_PORT=8001 npm run dev` przy `uvicorn … --port 8001`.
 
@@ -108,6 +108,7 @@ FastAPI
 | `GET /api/parcel` | numer, punkt albo adres | działka (WGS84, centroid, pole, TERYT) | 0,2–0,6 s |
 | `POST /api/context` | działka, opcjonalnie dzień D | pogoda, gleba, teren, cieki, satelita, `provenance[]` | 5–20 s na żywo; z cache ok. 20 ms |
 | `POST /api/recommend` | kontekst i prośba (uprawa, daty, odpowiedzi) | ocena, przyczyny, działania | zwykle poniżej 1 s |
+| `POST /api/report.pdf` | gotowy wynik z `/api/recommend` i opcjonalnie działka (gmina, obręb) | plik PDF do pobrania (`raport-<numer>-<data>.pdf`) | ok. 0,4 s |
 | `GET /api/health` | — | `{"status":"ok"}` | — |
 
 `/api/context` woła źródła równolegle i urywa całość po 28 s. Każde źródło ma własny, krótszy limit. Awaria jednego nie blokuje reszty: w raporcie widać status (`ok`, `partial`, `timeout`, `error`, `empty`). Trafienie w cache nie wykonuje zapytań. Przy `?refresh=true` źródło, które teraz zawiedzie, może wrócić z poprzedniego zapisu (`provenance.mode = "cache"`).
@@ -179,6 +180,7 @@ Własny cache (`backend/cache/`, poza gitem, albo `KOWR_CACHE_DIR`) ma pierwsze�
 | httpx | wywołania usług | BSD-3-Clause |
 | NumPy | rastry NMT i Sentinela, bez GDAL i rasterio | BSD-3-Clause |
 | PyYAML | progi i reguły | MIT |
+| fpdf2 (z zależnościami Pillow i fontTools) | raport PDF (`app/report_pdf.py`) | LGPL-3.0 (Pillow: MIT-CMU, fontTools: MIT) |
 | pytest | testy | MIT |
 | anthropic | zadeklarowany, **nieużywany** | MIT |
 
@@ -214,7 +216,7 @@ Pełna lista zależności przechodnich jest w `frontend/package-lock.json`.
 | Progi KBW | akt prawny, domena publiczna (Dz.U. 2019 poz. 739) |
 | Leaflet | BSD-2-Clause |
 | react-leaflet | Hippocratic License 2.1 — licencja z klauzulą etyczną, inna niż MIT/BSD. Dotyczy biblioteki mapy, nie danych KOWR. Przed ewentualnym wdrożeniem produkcyjnym warto ją osobno przejrzeć |
-| Krój Atkinson Hyperlegible Next | SIL Open Font License 1.1 |
+| Krój Atkinson Hyperlegible Next | SIL Open Font License 1.1; plik TTF z tekstem licencji w `backend/app/data/fonts/`, osadzany (podzbiór znaków) w raporcie PDF |
 
 Kod prototypu powstał w trakcie wydarzenia. Przeniesienie praw do rozwiązania zwycięskiego reguluje regulamin zadania (§ 5), nie ten plik.
 

@@ -66,7 +66,7 @@ Testy: `cd backend && pytest`. Frontend: `npm run build` musi przejść bez bł�
 
 ### Zależności
 
-- Backend: `fastapi`, `uvicorn`, `httpx`, `numpy`, `pydantic` (z FastAPI), `pyyaml`, `anthropic`; do testów `pytest`. Nic więcej bez uzgodnienia.
+- Backend: `fastapi`, `uvicorn`, `httpx`, `numpy`, `pydantic` (z FastAPI), `pyyaml`, `anthropic`, `fpdf2` (raport PDF, uzgodnione 22.11; ciągnie Pillow i fontTools); do testów `pytest`. Nic więcej bez uzgodnienia.
 - Frontend: `react`, `react-dom`, `leaflet` + `react-leaflet`, `chart.js` + `react-chartjs-2`. Bez bibliotek UI, style w zwykłym CSS.
 
 ## Istniejący kod (prototyp do przeniesienia)
