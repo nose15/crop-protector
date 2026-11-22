@@ -12,7 +12,7 @@
 .leaflet-popup-content { font-size: .95rem; }
 
 /* ------------------------------------------------------------ szklany pasek */
-.topbar { position: absolute; z-index: 1100; top: 12px; left: 12px; right: 12px; min-height: var(--top-h);
+.topbar { position: absolute; z-index: 1100; top: 12px; left: 12px; right: 12px; min-height: 76px; /* stała – --top-h to zmierzona wysokość (App.jsx); min-height z --top-h blokował pasek po zwężeniu okna */
   display: flex; align-items: center; gap: 16px; padding: 10px 14px 10px 16px;
   background: rgba(255, 255, 255, .82); backdrop-filter: blur(16px) saturate(1.4); -webkit-backdrop-filter: blur(16px) saturate(1.4);
   border: 1px solid rgba(255, 255, 255, .7); border-radius: var(--r-xl); box-shadow: var(--shadow); }
@@ -247,6 +247,23 @@ table.thr tr.now td, table.thr tr.now th { box-shadow: inset 0 2px 0 var(--ink),
 @media (max-width: 1400px) and (min-width: 901px) {
   .brand-text { display: none; }
 }
+/* Za wąsko na jeden rząd (wyszukiwarka z 4–5 polami + ikonki): dwa rzędy – marka i ikonki u góry
+   (status serwera skrajnie po prawej), wyszukiwarka pod spodem na całą szerokość. Bez tego grupa ikonek
+   (flex: none) wychodziła poza ekran. Wysokość paska trafia do --top-h (App.jsx), więc panel schodzi niżej. */
+/* Pomiar 22.11.2026: jeden rząd mieści się od ok. 1480 px (z polem „Siew” od ok. 1660 px). */
+@media (min-width: 901px) { .search .field:not(.grow) { flex: none; } }   /* uprawa i daty nigdy nie ucinają treści */
+@media (max-width: 1480px) and (min-width: 901px) {
+  .topbar { flex-wrap: wrap; row-gap: 8px; }
+  .brand-text { display: flex; }
+  .tools { margin-left: auto; }
+  .search { order: 3; flex: 1 1 100%; flex-wrap: wrap; row-gap: 4px; }   /* poniżej ok. 1000 px i tu brak miejsca */
+  .search .btn-go { flex: 1 0 auto; }
+}
+@media (max-width: 1660px) and (min-width: 1481px) {
+  .topbar:has(.field.sow:not([hidden])) { flex-wrap: wrap; row-gap: 8px; }
+  .topbar:has(.field.sow:not([hidden])) .tools { margin-left: auto; }
+  .topbar:has(.field.sow:not([hidden])) .search { order: 3; flex: 1 1 100%; }
+}
 /* ------------------------------------------------------------ telefon */
 @media (max-width: 900px) {
   :root { --top-h: auto; }
@@ -257,6 +274,7 @@ table.thr tr.now td, table.thr tr.now th { box-shadow: inset 0 2px 0 var(--ink),
   .tools { margin-left: auto; } .nav { display: none; }
   .search { order: 3; flex-basis: 100%; flex-wrap: wrap; }
   .field { flex: 1 1 45%; } .field + .field { box-shadow: none; } .field.grow { flex-basis: 100%; }
+  .search .field:not(.grow) { min-width: max-content; }   /* data nie może być ucięta; gdy brak miejsca – osobny wiersz */
   .btn-go { flex-basis: 100%; }
   #map { position: relative; height: 46vh; }
   .map-fade, .maplegend { display: none; }

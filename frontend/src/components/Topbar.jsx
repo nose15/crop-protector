@@ -65,7 +65,7 @@ const Topbar = forwardRef(function Topbar(
           <DateField value={request.range.to} min={request.range.from} max={maxTo}
             onChange={(to) => set({ range: { ...request.range, to } })} />
         </label>
-        <label className="field" hidden={!showSow}>
+        <label className="field sow" hidden={!showSow}>
           <span>Siew <em>(jeśli znasz)</em></span>
           <DateField value={request.sowing_date || ""} allowEmpty
             onChange={(isoDate) => set({ sowing_date: isoDate })} />
