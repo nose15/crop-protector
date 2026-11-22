@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from app.engine import plain, terrain_rules, weather_rules, when_window
 from app.engine.confidence import min_conf
-from app.models import AnalysisResult, Answers, Cause, NotEvaluated, ParcelContext, RecommendRequest
+from app.models import AnalysisResult, Answers, Cause, Evidence, NotEvaluated, ParcelContext, RecommendRequest
 
 GROUP_ORDER = {"retencja": 0, "agrotechnika": 1, "nawadnianie": 2}
 MAX_CARDS = 5
@@ -67,12 +67,16 @@ def cause_c2(ctx: ParcelContext) -> Cause:
         return Cause(code="C2", dominant=False, confidence="nie_oceniono", why="Brak mapy kategorii gleb IUNG.")
     light = iung.shares.get("I", 0) + iung.shares.get("II", 0)
     pct = round(light * 100)
+    evidence = [Evidence(field="soil.iung.shares.I+II", value=pct)]
+    reason = "Kategoria gleby z mapy IUNG (5 m)."
     if light >= 0.5:
         return Cause(code="C2", dominant=True, confidence="srednia",
-                     why=f"Lekka, piaszczysta gleba zajmuje {pct}% działki i szybko traci wodę.")
+                     why=f"Lekka, piaszczysta gleba zajmuje {pct}% działki i szybko traci wodę.",
+                     confidence_reason=reason, evidence=evidence)
     return Cause(code="C2", dominant=False, confidence="srednia",
                  why=f"Przeważa gleba {SOIL_WORD.get(iung.dominant, 'nierolnicza')}, która "
-                     f"{'dobrze' if iung.dominant in ('III', 'IV', 'organic') else 'słabo'} zatrzymuje wodę.")
+                     f"{'dobrze' if iung.dominant in ('III', 'IV', 'organic') else 'słabo'} zatrzymuje wodę.",
+                 confidence_reason=reason, evidence=evidence)
 
 
 def _plural(n: int) -> str:

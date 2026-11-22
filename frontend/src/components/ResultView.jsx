@@ -2,6 +2,7 @@
 // poziom 2 na żądanie (doprecyzowanie i sekcje szczegółów). Liczby wyłącznie z wyniku silnika.
 import { Fragment, useEffect, useRef, useState } from "react";
 import { CauseIcon, StatusIcon } from "./Icons.jsx";
+import OverlayFrame from "./OverlayFrame.jsx";
 import Seg from "./Seg.jsx";
 import Sources from "./Sources.jsx";
 import ScienceSources from "./ScienceSources.jsx";
@@ -111,6 +112,46 @@ function WaterChart({ series, taw }) {
   );
 }
 
+function evidenceLines(evidence) {
+  const items = Array.isArray(evidence) ? evidence : [];
+  const value = new Map(items.map((item) => [item.field, item.value]));
+  const has = (...fields) => fields.every((field) => value.has(field));
+  const lines = [];
+  if (has("state.kbw.kbw_mm")) lines.push(`Bilans opadu i parowania: ${fmt(value.get("state.kbw.kbw_mm"))} mm`);
+  if (has("state.kbw.threshold_mm")) lines.push(`Próg suszy: ${fmt(value.get("state.kbw.threshold_mm"))} mm`);
+  if (has("susceptibility.n_kbw", "susceptibility.of_kbw")) {
+    lines.push(`Susza z braku deszczu: ${fmt(value.get("susceptibility.n_kbw"))} z ${fmt(value.get("susceptibility.of_kbw"))} lat`);
+  }
+  if (has("soil.iung.shares.I+II")) lines.push(`Udział gleby lekkiej: ${fmt(value.get("soil.iung.shares.I+II"))} %`);
+  if (has("terrain.stats.slope_p90_deg")) lines.push(`Nachylenie: ${fmt(value.get("terrain.stats.slope_p90_deg"), 1)}°`);
+  if (has("terrain.outlets[0].catchment_ha")) lines.push(`Zlewnia spływu: ${fmt(value.get("terrain.outlets[0].catchment_ha"), 1)} ha`);
+  if (has("susceptibility.n_ks", "susceptibility.of")) {
+    lines.push(`Lata ze stresem w pełni wzrostu: ${fmt(value.get("susceptibility.n_ks"))} z ${fmt(value.get("susceptibility.of"))} lat`);
+  }
+  return lines;
+}
+
+function CauseWindow({ cause, onClose, onShowActions }) {
+  const lines = evidenceLines(cause.evidence);
+  return (
+    <OverlayFrame label={CAUSE[cause.code].short} onClose={onClose}>
+      <div className="prose">
+        <h2>{CAUSE[cause.code].short}</h2>
+        <p>{CAUSE[cause.code].long}</p>
+        <p><span className={`pill ${cause.dominant ? "dominujaca" : "brak"}`}>{cause.dominant ? "główna" : "mniej ważna"}</span></p>
+        <p>{cause.why}</p>
+        <p>
+          <b>Pewność:</b> <span className={`pill ${cause.confidence}`}>{CONF[cause.confidence]}</span>
+          {cause.confidence_reason ? <span className="small"> {cause.confidence_reason}</span> : null}
+        </p>
+        {lines.length > 0 && <ul>{lines.map((line) => <li key={line}>{line}</li>)}</ul>}
+        <p>Działania z tej oceny są na kartach niżej.</p>
+        <p><button type="button" className="sbtn" onClick={onShowActions}>Pokaż karty działań</button></p>
+      </div>
+    </OverlayFrame>
+  );
+}
+
 function Action({ r, no, sites, onSiteAnswer, onFocus }) {
   return (
     <li>
@@ -149,6 +190,8 @@ function Action({ r, no, sites, onSiteAnswer, onFocus }) {
 
 export default function ResultView({ parcel, request, result, context, answers, onAnswers, onRecompute, onSiteAnswer, onFocus }) {
   const [openCause, setOpenCause] = useState(null);
+  const openerRef = useRef(null);
+  const actionsRef = useRef(null);
   const v = verdict(result);
   const g = gauge(result.state.soil_water);
   const kb = kbwBar(result.state.kbw);
@@ -162,6 +205,7 @@ export default function ResultView({ parcel, request, result, context, answers, 
   const startRel = startLevel < startRaw ? "poniżej progu" : startLevel > startRaw ? "powyżej progu" : "na równi z progiem";
   const k = result.state.kbw || {};
   const dominant = result.causes.filter((c) => c.dominant);
+  const opened = result.causes.find((c) => c.code === openCause);
   const top = topActions(result.recommendations);
   const sNote = seasonNote(request.range.from);
   const more = result.state.headline_more || [];
@@ -258,16 +302,24 @@ export default function ResultView({ parcel, request, result, context, answers, 
       <div className="why">
         {dominant.map((c) => (
           <button key={c.code} type="button" className="cause" aria-expanded={openCause === c.code}
-            onClick={() => setOpenCause(openCause === c.code ? null : c.code)}>
+            onClick={(event) => {
+              if (openCause === c.code) setOpenCause(null);
+              else { openerRef.current = event.currentTarget; setOpenCause(c.code); }
+            }}>
             <CauseIcon code={c.code} />{CAUSE[c.code].short}
           </button>
         ))}
-        {openCause && (
-          <p className="cause-note">{result.causes.find((c) => c.code === openCause)?.why} (pewność: {CONF[result.causes.find((c) => c.code === openCause)?.confidence]})</p>
-        )}
       </div>
+      {opened && (
+        <CauseWindow cause={opened} onClose={() => { setOpenCause(null); openerRef.current?.focus(); }}
+          onShowActions={() => {
+            setOpenCause(null);
+            actionsRef.current?.focus();
+            actionsRef.current?.scrollIntoView({ block: "start" });
+          }} />
+      )}
 
-      <h2 className="sec-title">Co zrobić <small>w tej kolejności</small></h2>
+      <h2 className="sec-title" id="co-zrobic" tabIndex={-1} ref={actionsRef}>Co zrobić <small>w tej kolejności</small></h2>
       {top.length === 0 && <p className="small muted">Na tej działce nie znaleźliśmy działań do polecenia.</p>}
       <ol className="todo">
         {top.map((r, i) => <Action key={r.id} r={r} no={i + 1} sites={answers.sites} onSiteAnswer={onSiteAnswer} onFocus={onFocus} />)}

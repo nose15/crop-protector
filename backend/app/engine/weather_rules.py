@@ -11,7 +11,7 @@ from app.engine import balance, crop as cropmod, forecast as fc, kbw, plain
 from app.engine.confidence import min_conf
 from app.engine.terrain_rules import RULES, _rec, pl, th
 from app.engine.weather import build_series
-from app.models import Cause, NotEvaluated, ParcelContext, Recommendation, RecommendRequest
+from app.models import Cause, Evidence, NotEvaluated, ParcelContext, Recommendation, RecommendRequest
 
 MONTHS = {"01": "styczeń", "02": "luty", "03": "marzec", "04": "kwiecień", "05": "maj", "06": "czerwiec",
           "07": "lipiec", "08": "sierpień", "09": "wrzesień", "10": "październik", "11": "listopad", "12": "grudzień"}
@@ -100,13 +100,24 @@ def evaluate(ctx: ParcelContext, req: RecommendRequest, c2: Cause, c3: Cause | N
         why += (f", próg suszy {pl(t=out.kbw['threshold_mm'])['t']} mm." if out.kbw.get("threshold_mm") is not None else ".")
         if sus and sus.get("n_kbw") is not None:
             why += f" Susza z braku deszczu w {sus['n_kbw']} z {sus['of_kbw']} ostatnich lat."
-        c1 = Cause(code="C1", dominant=dominant, confidence="srednia", why=why)
+        evidence = [Evidence(field="state.kbw.kbw_mm", value=out.kbw["kbw_mm"])]
+        if out.kbw.get("threshold_mm") is not None:
+            evidence.append(Evidence(field="state.kbw.threshold_mm", value=out.kbw["threshold_mm"]))
+        if sus and sus.get("n_kbw") is not None:
+            evidence.append(Evidence(field="susceptibility.n_kbw", value=sus["n_kbw"]))
+            evidence.append(Evidence(field="susceptibility.of_kbw", value=sus["of_kbw"]))
+        c1 = Cause(code="C1", dominant=dominant, confidence="srednia", why=why,
+                   confidence_reason="KBW to przybliżenie metodyki SMSR (parowanie liczone wzorem FAO).",
+                   evidence=evidence)
     # --- C4: uprawa w złym oknie
     c4 = Cause(code="C4", dominant=False, confidence="nie_oceniono", why="Brak bilansu wody z 10 lat.")
     if sus and sus.get("n_ks") is not None:
         c4 = Cause(code="C4", dominant=sus["n_ks"] >= 5, confidence="niska",
                    why=f"W {sus['n_ks']} z {sus['of']} ostatnich lat roślinom brakowało wody w czasie pełnego wzrostu"
-                       + (f", najczęściej: {_months_text(sus['risk_months'])}." if sus["risk_months"] else "."))
+                       + (f", najczęściej: {_months_text(sus['risk_months'])}." if sus["risk_months"] else "."),
+                   confidence_reason="Daty faz uprawy i próg 10 dni niedoboru to heurystyki do weryfikacji z doradcą.",
+                   evidence=[Evidence(field="susceptibility.n_ks", value=sus["n_ks"]),
+                             Evidence(field="susceptibility.of", value=sus["of"])])
     out.causes = [c1, c4]
 
     _rules(ctx, req, out, c1, c2, c3, c4)

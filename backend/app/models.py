@@ -185,6 +185,8 @@ class Cause(BaseModel):
     dominant: bool
     confidence: Confidence
     why: str
+    evidence: list[Evidence] = []
+    confidence_reason: str | None = None
 
 
 class AnalysisResult(BaseModel):

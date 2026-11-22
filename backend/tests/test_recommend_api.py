@@ -55,6 +55,39 @@ def test_ok_and_invariants(context):
     assert any(n["rule"] == "R14" for n in res["not_evaluated"])
 
 
+C1_REASON = "KBW to przybliżenie metodyki SMSR (parowanie liczone wzorem FAO)."
+C1_FIELDS = ["state.kbw.kbw_mm", "state.kbw.threshold_mm", "susceptibility.n_kbw", "susceptibility.of_kbw"]
+
+
+def test_causes_keep_order_and_carry_evidence(context):
+    """Kolejność zostaje C1–C4. Liczby przyczyny są kopią w evidence, nie drugim bilansem."""
+    res = client.post("/api/recommend", json=body(context)).json()
+    assert [c["code"] for c in res["causes"]] == ["C1", "C2", "C3", "C4"]
+    for cause in res["causes"]:
+        assert "evidence" in cause and "confidence_reason" in cause
+        if cause["confidence"] == "nie_oceniono":
+            assert cause["evidence"] == []
+            assert cause["confidence_reason"] is None
+        else:
+            assert cause["confidence_reason"]
+            assert cause["evidence"]
+            assert all("field" in item and "value" in item for item in cause["evidence"])
+        reason = cause["confidence_reason"] or ""
+        assert "ETP IUNG" not in reason
+        assert "Penman-Monteith" not in reason
+    c1 = next(c for c in res["causes"] if c["code"] == "C1")
+    fields = [item["field"] for item in c1["evidence"]]
+    assert fields == [name for name in C1_FIELDS if name in fields]
+    assert not any("et0" in field or "p_mm" in field or "precip" in field for field in fields)
+    kbw_mm = (res["state"].get("kbw") or {}).get("kbw_mm")
+    if kbw_mm is not None:
+        copied = next(item["value"] for item in c1["evidence"] if item["field"] == "state.kbw.kbw_mm")
+        assert copied == kbw_mm
+        assert "Opady minus parowanie" in c1["why"]
+    if c1["confidence"] == "srednia":
+        assert c1["confidence_reason"] == C1_REASON
+
+
 def test_site_answer_roundtrip(context):
     res = client.post("/api/recommend", json=body(
         context, date(2026, 2, 1), date(2026, 4, 30), sites={"ditch0": True})).json()

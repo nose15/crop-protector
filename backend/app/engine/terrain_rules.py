@@ -90,15 +90,20 @@ def _terrain_rules(ctx, req, t, sites, out: TerrainOutcome) -> None:
     flow_conf = "srednia" if p90 >= th("flow_medium_conf_p90_deg") else "niska"
 
     # C3: spływ z pola
+    evidence = [Evidence(field="terrain.stats.slope_p90_deg", value=p90)]
+    if main:
+        evidence.append(Evidence(field="terrain.outlets[0].catchment_ha", value=main["catchment_ha"]))
+    reason = "Nachylenie i spływ z modelu wysokości 1 m (GUGiK)."
     if steep or concentrated:
         v = pl(p90=p90, ha=main["catchment_ha"] if main else 0.0)
         why = (f"Pole jest strome (nachylenie do {v['p90']}°), więc woda szybko z niego spływa." if steep else
                f"Woda z ok. {v['ha']} ha pola zbiera się w jeden strumień i odpływa z działki.")
         out.c3 = Cause(code="C3", dominant=True, confidence=min_conf("srednia", flow_conf if not steep else "srednia"),
-                       why=why)
+                       why=why, confidence_reason=reason, evidence=evidence)
     else:
         out.c3 = Cause(code="C3", dominant=False, confidence="srednia",
-                       why="Teren jest łagodny i woda nie spływa z pola jednym strumieniem.")
+                       why="Teren jest łagodny i woda nie spływa z pola jednym strumieniem.",
+                       confidence_reason=reason, evidence=evidence)
 
     # R11: rów wykryty w NMT
     deps = t.get("depressions") or []

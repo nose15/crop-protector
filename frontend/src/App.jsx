@@ -6,6 +6,7 @@ import MapLegend from "./components/MapLegend.jsx";
 import ResultView from "./components/ResultView.jsx";
 import { ErrorState, Loading, Welcome } from "./components/PanelStates.jsx";
 import ScienceSources from "./components/ScienceSources.jsx";
+import OverlayFrame from "./components/OverlayFrame.jsx";
 import { defaultRequest, iso, seasonNote, verdict } from "./lib/present.js";
 
 // Styl „Pole z lotu ptaka”: mapa na cały ekran, szklany pasek z wyszukiwarką, panel „najpierw krótko, szczegóły na żądanie”.
@@ -38,7 +39,6 @@ export default function App() {
   const seq = useRef(0);
   const contextCache = useRef(new Map());
   const topRef = useRef(null);
-  const closeRef = useRef(null);
 
   // dostępność: rozmiar tekstu (17/19/21 px) i wysoki kontrast na <html>, zapamiętane w przeglądarce
   useEffect(() => {
@@ -59,14 +59,6 @@ export default function App() {
     ro.observe(topRef.current);
     return () => ro.disconnect();
   }, []);
-  useEffect(() => {
-    if (!info) return undefined;
-    closeRef.current?.focus();
-    const esc = (e) => { if (e.key === "Escape") setInfo(false); };
-    document.addEventListener("keydown", esc);
-    return () => document.removeEventListener("keydown", esc);
-  }, [info]);
-
   async function contextFor(p, asOf = null) {
     const key = `${p.id}|${asOf || iso(new Date())}`;
     if (!contextCache.current.has(key)) contextCache.current.set(key, await getContext(p, asOf));
@@ -229,27 +221,23 @@ export default function App() {
       </div>
 
       {info && (
-        <section className="overlay" role="dialog" aria-modal="true" aria-label="Jak liczymy"
-          onClick={(e) => { if (e.target === e.currentTarget) setInfo(false); }}>
-          <div className="ov-inner">
-            <button type="button" className="ov-close" ref={closeRef} aria-label="Zamknij" onClick={() => setInfo(false)}>×</button>
-            <div className="prose">
-              <h2>Jak liczymy</h2>
-              <p>Każdą liczbę i każdą radę liczy program na podstawie danych o Twojej działce; nic nie jest zgadywane.</p>
-              <ol>
-                <li><b>Działka</b> z rejestru ULDK (GUGiK): granica i powierzchnia.</li>
-                <li><b>Pogoda z 10 lat</b> i prognoza na 16 dni (Open-Meteo, ERA5): opad, parowanie, temperatura.</li>
-                <li><b>Gleba</b>: kategoria podatności na suszę (IUNG-PIB) i właściwości wodne (SoilGrids).</li>
-                <li><b>Teren</b> z modelu wysokości 1 m (GUGiK): spadki, spływ wody, rowy i zagłębienia.</li>
-                <li><b>Woda w glebie</b> liczona dzień po dniu metodą FAO-56; próg suszy z rozporządzenia (Dz.U. 2019 poz. 739).</li>
-                <li><b>Wybrany okres</b>: pogoda z prognozy, a dalej z tych samych dni w 10 poprzednich latach („w ilu z 10 lat zabraknie wody”).</li>
-                <li><b>Rady</b> w stałej kolejności: najpierw zatrzymanie wody na polu, potem zabiegi w uprawie, na końcu nawadnianie.</li>
-              </ol>
-              <h3>Źródła naukowe i metody</h3>
-              <ScienceSources />
-            </div>
+        <OverlayFrame label="Jak liczymy" onClose={() => setInfo(false)}>
+          <div className="prose">
+            <h2>Jak liczymy</h2>
+            <p>Każdą liczbę i każdą radę liczy program na podstawie danych o Twojej działce; nic nie jest zgadywane.</p>
+            <ol>
+              <li><b>Działka</b> z rejestru ULDK (GUGiK): granica i powierzchnia.</li>
+              <li><b>Pogoda z 10 lat</b> i prognoza na 16 dni (Open-Meteo, ERA5): opad, parowanie, temperatura.</li>
+              <li><b>Gleba</b>: kategoria podatności na suszę (IUNG-PIB) i właściwości wodne (SoilGrids).</li>
+              <li><b>Teren</b> z modelu wysokości 1 m (GUGiK): spadki, spływ wody, rowy i zagłębienia.</li>
+              <li><b>Woda w glebie</b> liczona dzień po dniu metodą FAO-56; próg suszy z rozporządzenia (Dz.U. 2019 poz. 739).</li>
+              <li><b>Wybrany okres</b>: pogoda z prognozy, a dalej z tych samych dni w 10 poprzednich latach („w ilu z 10 lat zabraknie wody”).</li>
+              <li><b>Rady</b> w stałej kolejności: najpierw zatrzymanie wody na polu, potem zabiegi w uprawie, na końcu nawadnianie.</li>
+            </ol>
+            <h3>Źródła naukowe i metody</h3>
+            <ScienceSources />
           </div>
-        </section>
+        </OverlayFrame>
       )}
     </>
   );
