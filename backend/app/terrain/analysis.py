@@ -77,7 +77,12 @@ async def fetch_dem(client: httpx.AsyncClient, bbox: tuple[float, float, float, 
     params = {"SERVICE": "WCS", "VERSION": "1.0.0", "REQUEST": "GetCoverage", "FORMAT": "image/x-aaigrid",
               "COVERAGE": COVERAGE, "BBOX": f"{minx},{miny},{maxx},{maxy}", "CRS": "EPSG:3857",
               "RESPONSE_CRS": "EPSG:3857", "WIDTH": w, "HEIGHT": h}
-    _, _, body = await fetch_bytes(client, "GET", WCS_URL, params=params)
+    try:
+        _, _, body = await fetch_bytes(client, "GET", WCS_URL, params=params)
+    except (httpx.RemoteProtocolError, httpx.ReadError):
+        # WCS GUGiK potrafi zerwać połączenie bez odpowiedzi (22.11.2026: na przemian ok w ~4 s i zerwania);
+        # jedna powtórka w ramach limitu adaptera, bez dalszych prób
+        _, _, body = await fetch_bytes(client, "GET", WCS_URL, params=params)
     text = body.decode("ascii", "replace")
     if not text.lstrip().lower().startswith("ncols"):
         raise ValueError(f"WCS nie zwrócił siatki ASCII: {text[:120]}")

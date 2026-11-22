@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
@@ -91,6 +91,58 @@ async def gather(client: httpx.AsyncClient, parcel: Parcel, as_of: date, full: b
                          water=data["water"], satellite=data["satellite"], provenance=provenance)
 
 
+RETRY_KEYS = ("terrain", "water", "soilgrids", "iung")   # źródła map – zapis bez nich jest uzupełniany
+RETRY_AFTER = timedelta(minutes=30)                       # nie częściej (usługa, która padła, zwykle chwilę leży)
+REFILL_TIMEOUT_S = 40.0                                   # przy uzupełnianiu NMT/SoilGrids/Overpass mają więcej czasu
+
+
+def _set(ctx: ParcelContext, key: str, value) -> ParcelContext:
+    if key in ("iung", "soilgrids"):
+        return ctx.model_copy(update={"soil": ctx.soil.model_copy(update={key: value})})
+    return ctx.model_copy(update={key: value})
+
+
+def missing(ctx: ParcelContext) -> list[str]:
+    return [k for k in RETRY_KEYS if _get(ctx, k) is None]
+
+
+def retry_due(ctx: ParcelContext) -> bool:
+    """Zapis ma braki w mapach (teren, cieki, gleba) i od zapisu minęło co najmniej RETRY_AFTER."""
+    if not missing(ctx):
+        return False
+    saved = (ctx.cache or {}).get("saved_at")
+    if not saved:
+        return True
+    try:
+        return datetime.now(timezone.utc) - datetime.fromisoformat(saved) >= RETRY_AFTER
+    except ValueError:
+        return True
+
+
+async def refill(client: httpx.AsyncClient, ctx: ParcelContext) -> ParcelContext:
+    """Ponawia tylko brakujące źródła map (np. NMT GUGiK chwilowo nie odpowiadał przy pierwszym pobraniu).
+    Pogoda i reszta zostają z zapisu – zapytanie trwa tyle, ile najwolniejsze z ponawianych źródeł."""
+    keys = missing(ctx)
+    ads = {k: a for k, a in adapters(False).items() if k in keys}
+    for a in ads.values():                       # pogoda jest z zapisu, więc mapy mogą dostać więcej czasu
+        a.timeout_s = max(a.timeout_s, REFILL_TIMEOUT_S)
+        if hasattr(a, "query_timeout_s"):                    # Overpass: limit także w treści zapytania
+            a.query_timeout_s = int(REFILL_TIMEOUT_S) - 5
+    results = await asyncio.gather(*(a.fetch(client, ctx.parcel, ctx.as_of) for a in ads.values()))
+    out, prov = ctx, list(ctx.provenance)
+    for k, r in zip(ads, results):
+        if r.data is None:                           # dalej nie odpowiada – zostaje stan z zapisu, z dopiskiem
+            when = datetime.now(timezone.utc).strftime("%H:%M UTC")
+            prov = [p.model_copy(update={"note": f"{p.note or p.status}; ponowiono {when}: "
+                                                 f"{r.provenance.note or r.provenance.status}"})
+                    if p.source == r.provenance.source else p for p in prov]
+            continue
+        out = _set(out, k, r.data)
+        prov = [p for p in prov if p.source != r.provenance.source] + [r.provenance]
+    partial = any(p.status != "ok" for p in prov if p.mode == "live" and "Sentinel" not in p.source)
+    return out.model_copy(update={"provenance": prov, "partial": partial})
+
+
 def covers(ctx: ParcelContext, as_of: date) -> bool:
     """Czy zapis wystarcza dla dnia analizy: zapis nie starszy niż D i pogoda od 1 marca sprzed 10 lat."""
     if ctx.meteo is None or not ctx.meteo.daily or as_of > ctx.as_of:
@@ -109,6 +161,10 @@ async def post_context(body: ContextRequest, request: Request, refresh: bool = F
     baseline.ensure(body.parcel, as_of)
     saved = cache.load(body.parcel.id)
     if saved and not refresh and covers(saved, as_of):
+        if retry_due(saved):                     # zapis bez terenu/cieków/gleby: ponów tylko te źródła i zapisz
+            filled = await refill(request.app.state.http, saved)
+            meta = cache.save(filled, origin=(saved.cache or {}).get("origin", "na_zywo"))
+            return filled.model_copy(update={"cache": {**meta, "hit": True, "refilled": missing(saved)}})
         return saved.model_copy(update={"cache": {**(saved.cache or {}), "hit": True}})
 
     ctx = await gather(request.app.state.http, body.parcel, as_of, previous=saved)

@@ -183,6 +183,8 @@ NASA POWER ma około 3 dni opóźnienia; ostatnie dni i prognozę 16 dni dokład
 
 Własny cache (`backend/cache/`, poza gitem, albo `KOWR_CACHE_DIR`) ma pierwszeństwo przed zapisem startowym. Zapis powstaje, gdy pobranie na dziś ma pogodę.
 
+Gdy zapis nie ma map (teren NMT, rowy i cieki, SoilGrids), bo usługa chwilowo nie odpowiadała, kolejne otwarcie działki po co najmniej 30 minutach ponawia tylko te źródła (z limitem 40 s; pogoda i reszta zostają z zapisu) i dopisuje je do zapisu. Bez tego działka zapisana podczas awarii GUGiK nigdy nie dostawała warstw spływu, zagłębień i spadków. Zapytanie o NMT ma jedną powtórkę przy zerwanym połączeniu (22.11.2026 WCS GUGiK na przemian odpowiadał w ok. 4 s i zrywał połączenia).
+
 ## 6. Biblioteki, komponenty, modele i usługi
 
 ### Backend (`backend/requirements.txt`)
