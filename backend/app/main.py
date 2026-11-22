@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import cache_api, context, parcel, recommend
+from app.api import cache_api, context, parcel, recommend, report
 from app.sources.base import make_client
 
 
@@ -30,6 +30,7 @@ app.include_router(parcel.router)
 app.include_router(context.router)
 app.include_router(recommend.router)
 app.include_router(cache_api.router)
+app.include_router(report.router)
 
 
 @app.get("/api/health")
