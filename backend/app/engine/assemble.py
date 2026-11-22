@@ -8,8 +8,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app.engine import plain, terrain_rules, weather_rules, when_window
-from app.engine.confidence import min_conf
+from app.engine import plain, s2_anomaly, terrain_rules, weather_rules, when_window
+from app.engine.confidence import ORDER, min_conf
+from app.engine.weather import build_series
 from app.models import AnalysisResult, Answers, Cause, Evidence, NotEvaluated, ParcelContext, RecommendRequest
 
 GROUP_ORDER = {"retencja": 0, "agrotechnika": 1, "nawadnianie": 2}
@@ -26,6 +27,74 @@ def weather_limitation(ctx: ParcelContext) -> str:
     if ctx.meteo is not None and ctx.meteo.history_source == "nasa_power":
         return "Pogodę bierzemy z siatki o oczku ok. 50 km (NASA POWER), więc lokalnych burz możemy nie widzieć."
     return "Pogodę bierzemy z siatki o oczku ok. 10 km, więc lokalnych burz możemy nie widzieć."
+
+
+CAUSE_SHORT = {"C1": "Mało deszczu, duże parowanie", "C2": "Lekka gleba nie trzyma wody",
+               "C3": "Woda spływa z pola", "C4": "Uprawa jest wrażliwa"}
+CONF_WORD = {"wysoka": "wysoka", "srednia": "średnia", "niska": "niska", "nie_oceniono": "nie oceniono"}
+
+
+def lower(level: str) -> str:
+    """O stopień niżej, ale nie poniżej „niskiej” (nie_oceniono zostaje)."""
+    return ORDER[max(ORDER.index(level) - 1, 1)] if level != "nie_oceniono" else level
+
+
+def satellite_check(ctx: ParcelContext, req: RecommendRequest, w: weather_rules.WeatherOutcome,
+                    s2base: dict | None, s2state: dict | None) -> dict:
+    """Porównanie satelitarne (openEO) i jego zgodność z bilansem wody w dniu analizy."""
+    state = (s2state or {}).get("state", "brak")
+    if not s2base:
+        why = {"nieskonfigurowane": "brak konta CDSE, więc porównania ze zdjęciami z lat ubiegłych nie liczymy",
+               "liczenie": "porównanie ze zdjęciami z lat ubiegłych jest w przygotowaniu (kilka minut)",
+               "blad": "nie udało się policzyć zdjęć z lat ubiegłych"}.get(state, "brak zdjęć z lat ubiegłych")
+        return {"state": state, "signal": None, "reason": why, "agreement": "nie_rozstrzyga"}
+    d = req.range.from_
+    wet = s2_anomaly.wet_last_30(build_series(ctx.meteo, d), d) if ctx.meteo else False
+    sat = s2_anomaly.analyse(s2base.get("obs", []), d, wet_recently=wet)
+    sw = w.soil_water or {}
+    deficit = sw.get("below_raw") if sw else None
+    sat["agreement"] = s2_anomaly.agreement(sat, deficit)
+    sat["state"] = "gotowe"
+    sat["retrieved_at"] = s2base.get("retrieved_at")
+    sat["source"] = s2base.get("source")
+    return sat
+
+
+def overall_confidence(ctx: ParcelContext, req: RecommendRequest, w: weather_rules.WeatherOutcome,
+                       causes: list[Cause], shown: list, sat: dict) -> tuple[str, list[str]]:
+    """Pewność całości (decyzja 22.11.2026, wzór sprawdzony w starej aplikacji): minimum z pewności danych
+    wejściowych oceny (pogoda, zapas wody w glebie), głównych przyczyn i 3 pierwszych rad. Awaria źródła obniża
+    tylko to, co z niego liczymy (np. brak mapy cieków → R11/R14 „nie oceniono”), a nie całość.
+    Zdjęcia satelitarne sprzeczne z bilansem wody → o stopień niżej; zgodne, przy bazie ≥ 5 lat i warunkach
+    wodnych potwierdzonych przez rolnika (dreny albo rów z zastawką: tak/nie) → „wysoka”."""
+    meteo_c = "srednia" if ctx.meteo is not None else "nie_oceniono"
+    parts: list[tuple[str, str]] = [(meteo_c, "pogoda z reanalizy"), (w.taw_conf, "zapas wody w glebie")]
+    parts += [(c.confidence, f"przyczyna „{CAUSE_SHORT.get(c.code, c.code)}”"
+               + (f" ({c.confidence_reason.rstrip('.')})" if c.confidence_reason else ""))
+              for c in causes if c.dominant and c.confidence != "nie_oceniono"]
+    parts += [(r.confidence, f"rada „{r.title or r.message}”"
+               + (f" ({r.confidence_reason.rstrip('.')})" if r.confidence_reason else ""))
+              for r in shown[:3]]
+    overall = min_conf(*(lvl for lvl, _ in parts))
+    reasons: list[str] = []
+    weakest = [why for lvl, why in parts if lvl == overall and overall in ("niska", "nie_oceniono")]
+    if weakest:
+        reasons.append(f"Najmniej pewne: {weakest[0]}.")
+    agree = sat.get("agreement")
+    answered = req.answers.drained is not None or req.answers.ditch_with_weir is not None
+    if agree == "przeczy":
+        overall = lower(overall)
+        looks = "gorzej niż zwykle" if sat.get("signal") == "niedobor" else "tak jak zwykle"
+        reasons.insert(0, f"Zdjęcia satelitarne nie zgadzają się z bilansem wody (rośliny wyglądają {looks}); "
+                          "warto obejrzeć pole.")
+    elif agree == "potwierdza":
+        if overall == "srednia" and (sat.get("base_years") or 0) >= s2_anomaly.GOOD_BASE_YEARS and answered:
+            overall = "wysoka"
+        tail = "." if answered else "; odpowiedz, czy działka ma dreny albo rów z zastawką, żeby podnieść pewność."
+        reasons.append(f"Zdjęcia satelitarne z {sat.get('base_years')} lat potwierdzają bilans wody{tail}")
+    elif sat.get("reason"):
+        reasons.append(f"Zdjęcia satelitarne: {sat['reason']}.")
+    return overall, reasons
 
 
 def water_limitation(answers: Answers) -> str:
@@ -111,7 +180,8 @@ def headline_technical(w: weather_rules.WeatherOutcome) -> str:
     return " ".join(parts) or "Brak oceny stanu wody."
 
 
-def build(ctx: ParcelContext, req: RecommendRequest) -> AnalysisResult:
+def build(ctx: ParcelContext, req: RecommendRequest, s2base: dict | None = None,
+          s2state: dict | None = None) -> AnalysisResult:
     terr = terrain_rules.evaluate(ctx, req)
     c2 = cause_c2(ctx)
     w = weather_rules.evaluate(ctx, req, c2, terr.c3)
@@ -126,15 +196,13 @@ def build(ctx: ParcelContext, req: RecommendRequest) -> AnalysisResult:
         hidden = [r for r in hidden if r is not irr] + [shown[-1]]
         shown = shown[:-1] + [irr]
 
-    reasons = list(w.uncertainty)
-    for p in failed_sources(ctx):
+    sat = satellite_check(ctx, req, w, s2base, s2state)
+    overall, reasons = overall_confidence(ctx, req, w, causes, shown, sat)
+    reasons += list(w.uncertainty)
+    for p in failed_sources(ctx):                 # informacja, nie kara: awaria obniża tylko to, co z niej liczone
         name = next((v for k, v in SOURCE_PLAIN.items() if p.source.startswith(k)), None)
         if name:
             reasons.append(f"{name} {STATUS_PLAIN.get(p.status, 'była niedostępna')}.")
-    # pewność całości z danych, nie z pojedynczych kart: KBW to przybliżenie SMSR (najwyżej „średnia”),
-    # zapas wody w glebie z rozbieżnych map obniża ją do „niskiej”, podobnie brak ≥ 2 źródeł danych
-    failed = failed_sources(ctx)
-    overall = min_conf("srednia", w.taw_conf, "niska" if len(failed) >= 2 else "srednia")
     if len(reasons) < 2:
         reasons.append("Ocena opiera się na mapach i danych pogodowych, bez obserwacji z pola.")
 
@@ -153,4 +221,5 @@ def build(ctx: ParcelContext, req: RecommendRequest) -> AnalysisResult:
                "headline_technical": headline_technical(w)},
         forecast=w.forecast, susceptibility=w.susceptibility, causes=causes, recommendations=shown,
         not_evaluated=titled(terr.not_evaluated + w.not_evaluated),
-        uncertainty={"overall": overall, "reasons": reasons[:4]}, provenance=ctx.provenance, limitations=limitations)
+        uncertainty={"overall": overall, "reasons": reasons[:4]}, provenance=ctx.provenance, limitations=limitations,
+        satellite_check=sat)

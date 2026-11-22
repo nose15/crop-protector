@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, HTTPException
 
-from app import cache
+from app import baseline, cache
 from app.engine.assemble import build
 from app.engine.weather import shift_year
 from app.models import AnalysisResult, RecommendBody
@@ -44,4 +44,7 @@ async def post_recommend(body: RecommendBody):
         raise HTTPException(409, {"error": "meteo_range",
                                   "message": "Dane pogodowe nie obejmują 10 lat przed wybraną datą. Pobieram je ponownie.",
                                   "as_of": rng.from_.isoformat()})
-    return build(body.context, body.request)
+    # baza satelitarna z lat ubiegłych (openEO): z pliku w cache; gdy jej brak – zadanie w tle, raport od razu bez niej
+    s2state = baseline.ensure(body.context.parcel, rng.from_)
+    s2base = baseline.load(body.context.parcel.id) if s2state.get("state") == "gotowe" else None
+    return build(body.context, body.request, s2base=s2base, s2state=s2state)

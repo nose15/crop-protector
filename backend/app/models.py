@@ -206,6 +206,8 @@ class AnalysisResult(BaseModel):
     uncertainty: dict[str, Any]
     provenance: list[Provenance]
     limitations: list[str]
+    # porównanie ze zdjęciami Sentinel-2 z lat ubiegłych (openEO): signal, z, base_years, flags, agreement, state
+    satellite_check: dict[str, Any] | None = None
 
 
 class Summary(BaseModel):
