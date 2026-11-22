@@ -142,7 +142,7 @@ export default function MapView({ parcel, locked, level, terrain, preview, onPic
         <ReliefLayer />
         {terrain?.layers && (
           <>
-            <LayersControl.Overlay checked name="Tędy spływa woda">
+            <LayersControl.Overlay checked name="Spływy wodne">
               <ImageOverlay url={terrain.layers.flow} bounds={terrain.bounds} />
             </LayersControl.Overlay>
             <LayersControl.Overlay name="Zagłębienia">
