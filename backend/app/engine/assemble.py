@@ -10,18 +10,34 @@ from datetime import datetime, timezone
 
 from app.engine import plain, terrain_rules, weather_rules, when_window
 from app.engine.confidence import min_conf
-from app.models import AnalysisResult, Cause, NotEvaluated, ParcelContext, RecommendRequest
+from app.models import AnalysisResult, Answers, Cause, NotEvaluated, ParcelContext, RecommendRequest
 
 GROUP_ORDER = {"retencja": 0, "agrotechnika": 1, "nawadnianie": 2}
 MAX_CARDS = 5
 
 BASE_LIMITATIONS = [
-    "Nie uwzględniamy wody gruntowej, drenowania ani nawadniania, dopóki ich nie potwierdzisz.",
     "Pogodę bierzemy z siatki o oczku ok. 10 km, więc lokalnych burz możemy nie widzieć.",
     "Dalej niż 16 dni naprzód nie ma prognozy pogody: pokazujemy, jak było w tych samych dniach w ostatnich 10 latach.",
     "Mapa terenu nie pokazuje przepustów pod drogami, więc rowy rozpoznajemy po kształcie.",
     "Daty siewu przyjmujemy typowe, chyba że podasz własną.",
 ]
+
+
+def water_limitation(answers: Answers) -> str:
+    """Jedno zdanie wody: gruntowej nie liczymy; drenowanie i nawadnianie tylko przy braku odpowiedzi."""
+    missing: list[str] = []
+    if answers.drained is None:
+        missing.append("drenowanie")
+    if answers.irrigation_water is None:
+        missing.append("nawadnianie")
+    if len(missing) == 2:
+        return "Nie liczymy wody gruntowej, a drenowania ani nawadniania nie uwzględniamy, dopóki ich nie potwierdzisz."
+    if missing == ["drenowanie"]:
+        return "Nie liczymy wody gruntowej, a drenowania nie uwzględniamy, dopóki go nie potwierdzisz."
+    if missing == ["nawadnianie"]:
+        return "Nie liczymy wody gruntowej, a nawadniania nie uwzględniamy, dopóki go nie potwierdzisz."
+    return "Nie liczymy wody gruntowej."
+
 
 SOIL_WORD = {"I": "bardzo lekka", "II": "lekka", "III": "średnia", "IV": "ciężka", "organic": "organiczna"}
 
@@ -113,7 +129,7 @@ def build(ctx: ParcelContext, req: RecommendRequest) -> AnalysisResult:
     if len(reasons) < 2:
         reasons.append("Ocena opiera się na mapach i danych pogodowych, bez obserwacji z pola.")
 
-    limitations = w.limitations + BASE_LIMITATIONS
+    limitations = w.limitations + [water_limitation(req.answers)] + BASE_LIMITATIONS
     for r in hidden:
         limitations.append(f"Pokazujemy najważniejsze działania; pominęliśmy: {r.title or r.message}.")
 

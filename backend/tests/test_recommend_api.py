@@ -194,6 +194,8 @@ def test_out_of_season_headline_without_six_months(context):
     assert "6 miesięcy" not in tech
     assert "wypada poza sezonem" not in tech
     assert "ryzyko na początku sezonu" not in tech
+    assert ("Nie liczymy wody gruntowej, a drenowania ani nawadniania nie uwzględniamy, "
+            "dopóki ich nie potwierdzisz.") in res["limitations"]
     for sentence in BASE_LIMITATIONS:
         assert sentence in res["limitations"]
 
@@ -202,3 +204,69 @@ def test_unknown_crop_422(context):
     b = body(context)
     b["request"]["crop"] = "banan"
     assert client.post("/api/recommend", json=b).status_code == 422
+
+
+FIXED_LIMITATIONS = [
+    "Pogodę bierzemy z siatki o oczku ok. 10 km, więc lokalnych burz możemy nie widzieć.",
+    "Dalej niż 16 dni naprzód nie ma prognozy pogody: pokazujemy, jak było w tych samych dniach w ostatnich 10 latach.",
+    "Mapa terenu nie pokazuje przepustów pod drogami, więc rowy rozpoznajemy po kształcie.",
+    "Daty siewu przyjmujemy typowe, chyba że podasz własną.",
+]
+OLD_WATER = "Nie uwzględniamy wody gruntowej, drenowania ani nawadniania, dopóki ich nie potwierdzisz."
+CULVERT = "Mapa terenu nie pokazuje przepustów pod drogami, więc rowy rozpoznajemy po kształcie."
+
+
+@pytest.mark.parametrize("answers,expected,present,absent", [
+    (
+        {},
+        "Nie liczymy wody gruntowej, a drenowania ani nawadniania nie uwzględniamy, dopóki ich nie potwierdzisz.",
+        ("drenowania", "nawadniania", "dopóki ich nie potwierdzisz"),
+        (),
+    ),
+    (
+        {"drained": True, "irrigation_water": True},
+        "Nie liczymy wody gruntowej.",
+        (),
+        ("drenow", "nawadn", "dopóki"),
+    ),
+    (
+        {"drained": False, "irrigation_water": False},
+        "Nie liczymy wody gruntowej.",
+        (),
+        ("drenow", "nawadn", "dopóki"),
+    ),
+    (
+        {"drained": None, "irrigation_water": True},
+        "Nie liczymy wody gruntowej, a drenowania nie uwzględniamy, dopóki go nie potwierdzisz.",
+        ("drenowania",),
+        ("nawadn",),
+    ),
+    (
+        {"drained": False, "irrigation_water": None},
+        "Nie liczymy wody gruntowej, a nawadniania nie uwzględniamy, dopóki go nie potwierdzisz.",
+        ("nawadniania",),
+        ("drenow",),
+    ),
+    (
+        {"ditch_with_weir": True},
+        "Nie liczymy wody gruntowej, a drenowania ani nawadniania nie uwzględniamy, dopóki ich nie potwierdzisz.",
+        (),
+        (),
+    ),
+])
+def test_water_limitation_after_answers(context, answers, expected, present, absent):
+    """Zdanie o wodzie zależy od drained i irrigation_water. True i False zdejmują pozycję tak samo."""
+    res = client.post("/api/recommend", json=body(context, **answers)).json()
+    limitations = res["limitations"]
+    water = [s for s in limitations if s.startswith("Nie liczymy wody gruntowej")]
+    assert water == [expected]
+    for part in present:
+        assert part in water[0]
+    for part in absent:
+        assert part not in water[0]
+    i = limitations.index(water[0])
+    assert limitations[i + 1:i + 5] == FIXED_LIMITATIONS
+    assert BASE_LIMITATIONS == FIXED_LIMITATIONS
+    assert OLD_WATER not in limitations
+    if answers.get("ditch_with_weir") is True:
+        assert CULVERT in limitations
