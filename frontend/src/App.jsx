@@ -4,6 +4,7 @@ import Topbar from "./components/Topbar.jsx";
 import MapView from "./components/MapView.jsx";
 import MapLegend from "./components/MapLegend.jsx";
 import ResultView from "./components/ResultView.jsx";
+import ServerStatus from "./components/ServerStatus.jsx";
 import { ErrorState, Loading, Welcome } from "./components/PanelStates.jsx";
 import ScienceSources from "./components/ScienceSources.jsx";
 import OverlayFrame from "./components/OverlayFrame.jsx";
@@ -218,6 +219,7 @@ export default function App() {
           {body}
         </aside>
         {locked && result && <MapLegend level={level} terrain={context?.terrain} />}
+        <ServerStatus />
       </div>
 
       {info && (

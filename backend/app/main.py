@@ -10,7 +10,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from datetime import datetime, timezone
+
+from app import baseline
 from app.api import cache_api, context, parcel, recommend, report
+from app.sources import meteo, openeo_cdse
 from app.sources.base import make_client
 
 
@@ -36,6 +40,15 @@ app.include_router(report.router)
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/api/status")
+async def status():
+    """Czy serwer aplikacji działa – frontend odpytuje to co 30 s i pokazuje stan w pasku.
+    Odpowiada od razu: bez zapytań do usług zewnętrznych (ich stan widać w „Źródłach danych” każdego wyniku)."""
+    return {"status": "ok", "server_time": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            "meteo_primary": meteo.primary(), "openeo_configured": openeo_cdse.configured(),
+            "satellite_jobs_running": baseline.running()}
 
 
 # Opcjonalnie: zbudowany frontend pod tym samym adresem (jedna usługa, bez CORS). Montowany na końcu,

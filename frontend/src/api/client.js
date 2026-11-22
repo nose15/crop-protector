@@ -63,6 +63,22 @@ export function recommend(context, request) {
   return call("/api/recommend", { method: "POST", body: JSON.stringify(body) });
 }
 
+/** Czy serwer aplikacji odpowiada (GET /api/status, bez zapytań do usług zewnętrznych). Limit 6 s. */
+export async function getStatus() {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const res = await fetch(`${API_BASE}/api/status`, { signal: ctrl.signal, cache: "no-store" });
+    if (!res.ok) throw new ApiError(res.status, "http", `Serwer odpowiedział błędem ${res.status}.`);
+    return await res.json();
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    throw new ApiError(0, "network", "Serwer aplikacji nie odpowiada.");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Raport PDF z gotowego wyniku: backend składa plik, przeglądarka go zapisuje. Zwraca nazwę pliku. */
 export async function downloadReportPdf(result, parcel) {
   let res;

@@ -77,3 +77,21 @@
 html[data-contrast="high"] .datepop { background: #fff; border: 2px solid #000; box-shadow: none; }
 html[data-contrast="high"] .dategrid button[aria-pressed="true"] { border: 2px solid #000; background: #fff; }
 @media print { details > summary::after { display: none; } .det-head .tools-row { display: none; } }
+
+/* Stan serwera (ServerStatus.jsx): sama kropka w prawym dolnym rogu ekranu (nad podpisem mapy), opis w dymku nad nią */
+.srv { position: fixed; right: 14px; bottom: 30px; z-index: 1300; display: inline-flex; align-items: center; gap: 6px; flex: none; margin-left: 0;
+  min-width: 24px; height: 24px; padding: 0 5px; justify-content: center; border-radius: 999px; cursor: help;
+  background: var(--paper); border: 1px solid var(--line); font-size: .8rem; font-weight: 700; color: var(--red); }
+.srv i { width: 11px; height: 11px; border-radius: 50%; background: var(--line-2); flex: none;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, .04); }
+.srv-ok i { background: var(--green); box-shadow: 0 0 0 3px var(--green-bg); }
+.srv-down { background: var(--red-bg); border-color: var(--red); }
+.srv-down i { background: var(--red); box-shadow: 0 0 0 3px #f6c9bf; }
+.srv:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.srv-tip { position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 1200; display: none; width: max-content;
+  max-width: 260px; padding: 8px 11px; border-radius: var(--r-sm); background: var(--ink); color: #fff;
+  font-size: .82rem; font-weight: 400; line-height: 1.35; box-shadow: var(--shadow); text-align: left; }
+.srv-tip b { display: block; font-weight: 700; margin-bottom: 2px; }
+.srv:hover .srv-tip, .srv:focus-visible .srv-tip { display: block; }
+html[data-contrast="high"] .srv { background: #fff; border: 2px solid #000; }
+@media print { .srv { display: none; } }
