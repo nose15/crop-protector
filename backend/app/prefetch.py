@@ -2,9 +2,9 @@
 
     cd backend && python -m app.prefetch 046101_1.0445.7 [kolejne numery…]
 
-Długie limity czasu (Overpass do 90 s, pozostałe do 60 s), 20 lat pogody, do 20 scen Sentinel-2 z NDVI.
-Źródła, które znów zawiodą, a były w poprzednim zapisie, zostają z zapisu. Uwaga: zużywa limit Open-Meteo
-(20 lat ≈ 560 „wywołań” z dziennej puli 10 000 na adres IP) – uruchamiać z sieci, gdzie Open-Meteo odpowiada.
+Długie limity czasu (Overpass do 90 s, pozostałe do 60 s), 20 lat pogody (NASA POWER, jedno zapytanie),
+do 20 scen Sentinel-2 z NDVI, a przy koncie CDSE także baza satelitarna z lat ubiegłych (openEO, kilka minut).
+Źródła, które znów zawiodą, a były w poprzednim zapisie, zostają z zapisu.
 """
 
 from __future__ import annotations
@@ -13,7 +13,8 @@ import asyncio
 import sys
 from datetime import date
 
-from app import cache
+from app import baseline, cache
+from app.sources import openeo_cdse
 from app.api.context import gather
 from app.sources import uldk
 from app.sources.base import make_client
@@ -32,6 +33,15 @@ async def prefetch(parcel_id: str) -> None:
             return
         meta = cache.save(ctx, origin="pelne_pobranie")
         print(f"   zapisano {meta['saved_at']}; pogoda od {ctx.meteo.daily[0].date}")
+        if openeo_cdse.configured():                 # baza satelitarna z lat ubiegłych: jedno zadanie openEO
+            print("   openEO: liczę bazę Sentinel-2 (kilka minut)…")
+            try:
+                base = await baseline.compute(client, parcel)
+                print(f"   openEO: {len(base['obs'])} obserwacji {base['from']}–{base['until']} w {base['job_seconds']} s")
+            except Exception as exc:  # noqa: BLE001
+                print(f"   openEO: nie udało się ({exc})")
+        else:
+            print("   openEO: brak konta CDSE – bazy satelitarnej nie liczę")
 
 
 if __name__ == "__main__":
