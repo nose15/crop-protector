@@ -348,7 +348,7 @@ export default function ResultView({ parcel, request, result, context, answers, 
         )}
         {s?.n_ks != null && (
           <div className="fact">
-            <div className="fl">Jak często w ostatnich latach</div>
+            <div className="fl">Jak często zabrakło wody w ostatnich latach</div>
             <div className="fv">{s.n_ks} z {s.of} lat <small>ze stresem w kluczowym okresie</small></div>
             <div className="dots" aria-hidden="true">
               {Array.from({ length: s.of }, (_, i) => <span key={i} className={i < s.n_ks ? "on" : ""} />)}
