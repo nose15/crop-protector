@@ -1,0 +1,176 @@
+# Reguły rekomendacji (kody jak w SPEC §5.2). Tutaj: teksty, progi, terminy i źródła.
+# Warunki są w app/engine/terrain_rules.py (funkcja na regułę), bo zależą od kilku pól naraz.
+# W tekstach {nazwa} to wartość policzona przez silnik dla działki; nie wpisujemy liczb spoza silnika.
+# Kolejność grup jest wiążąca: retencja → agrotechnika → nawadnianie. `priority`: kolejność w grupie.
+
+consult_note: >-
+  Przed budową lub przebudową skonsultuj się z doradcą ODR, spółką wodną albo Wodami Polskimi:
+  urządzenia wodne (zastawki, stawy) mogą wymagać zgłoszenia wodnoprawnego.
+
+thresholds:
+  steep_p90_deg_light_soil:   {value: 11, source: "silnik.md, tabela przyczyn C3 (gleby lekkie)"}
+  steep_p90_deg_other_soil:   {value: 7,  source: "silnik.md, tabela przyczyn C3 (gleby średnie)"}
+  contour_sowing_p90_deg:     {value: 3,  source: "silnik.md, R1: P90 > 2–3°; przyjęto górną granicę (heurystyka)"}
+  low_soc_gkg:                {value: 10, source: "heurystyka: mało węgla organicznego w wierzchniej warstwie gleby lekkiej"}
+  stress_chance_r15:          {value: 5, source: "silnik.md, R15: szansa stresu ≥ 5 z 10"}
+  stress_chance_irrigation:   {value: 5, source: "heurystyka: nawadnianie, gdy niedobór w co najmniej połowie scenariuszy"}
+  concentrated_flow_min_ha:   {value: 1.0, source: "heurystyka: odpływ zbierający wodę z ≥ 1 ha uznajemy za wyraźną linię spływu"}
+  flow_medium_conf_p90_deg:   {value: 3,  source: "heurystyka: poniżej 3° kierunek spływu jest niepewny (mikrorzeźba)"}
+  ditch_osm_max_m:            {value: 100, source: "silnik.md, R11: rów ≤ 100 m"}
+  watercourse_buffer_max_m:   {value: 50, source: "heurystyka: ciek do 50 m od granicy działki"}
+
+row_crops: [kukurydza_ziarno, kukurydza_kiszonka, ziemniak, burak_cukrowy]
+
+rules:
+  R11:
+    title: "Postaw zastawkę na rowie"
+    when_short: "luty–marzec"
+    group: retencja
+    priority: 1
+    investment: true
+    lead_time: tygodnie
+    when_text: "Zamknij zastawkę po roztopach (luty–marzec), żeby zatrzymać wodę wiosenną w rowie i w glebie. Otwórz ją, gdy pole jest podtopione."
+    message: "Zatrzymaj wodę w rowie zastawką. Przy działce jest rów, do którego spływa woda z pola."
+    message_confirmed_weir: "Przy działce jest rów z zastawką. Steruj nią: zamykaj po roztopach, otwieraj przy podtopieniu."
+    why: "Na mapie wysokości terenu widać wąskie obniżenie ok. {length_m} m długości i do {max_depth_m} m głębokości ({distance}), najpewniej rów."
+    why_outlets: " Woda z pola trafia do niego w {n_outlets} miejscach."
+    why_osm: "Rów z mapy OpenStreetMap ok. {distance_m} m od działki."
+    why_farmer: "Rolnik potwierdził, że przy działce jest rów z zastawką."
+    effect: "Wyższy poziom wody w rowie spowalnia odpływ i podnosi wilgotność gleby przy rowie wiosną."
+    question: "Czy w tym miejscu jest rów?"
+    sources: ["Katalog działań NWRM (nwrm.eu): sterowanie odpływem z drenażu i rowów", "Wody Polskie: program przeciwdziałania niedoborowi wody"]
+
+  R6:
+    title: "Zrób oczko wodne w naturalnym zagłębieniu"
+    when_short: "sierpień–październik"
+    group: retencja
+    priority: 2
+    investment: true
+    lead_time: miesiące
+    when_text: "Prace ziemne najlepiej po zbiorze, przy suchej glebie (sierpień–październik)."
+    message: "Zachowaj naturalne zagłębienie i rozważ oczko wodne. Woda sama tu spływa."
+    why: "Zagłębienie ok. {area_m2} m², do {max_depth_m} m głębokości, pojemność terenu ok. {volume_m3} m³; {inside_parcel_pct}% leży na działce."
+    effect: "Zatrzymuje wodę z roztopów i ulew na działce zamiast odpływu; poprawia wilgotność w otoczeniu."
+    question: "Czy wiosną albo po ulewie stoi tu woda?"
+    sources: ["Katalog działań NWRM (nwrm.eu): stawy i oczka śródpolne"]
+
+  R3:
+    title: "Załóż pas trawy tam, gdzie woda odpływa z pola"
+    when_short: "sierpień–wrzesień"
+    group: retencja
+    priority: 3
+    investment: false
+    lead_time: tygodnie
+    when_text: "Wysiej trawę w pasie pod koniec lata lub wczesną jesienią (sierpień–wrzesień) albo wiosną."
+    message: "Załóż pas trawy na linii spływu przy miejscu, gdzie woda opuszcza pole."
+    why: "Woda z ok. {catchment_ha} ha pola zbiera się w jeden strumień i w tym miejscu odpływa z działki ({terrain_word})."
+    effect: "Pas zadarniony spowalnia spływ, zatrzymuje glebę i daje wodzie czas na wsiąknięcie."
+    sources: ["Katalog działań NWRM (nwrm.eu): pasy buforowe i zadarnienie"]
+
+  R2:
+    title: "Wprowadź pasy trawy w poprzek stoku"
+    when_short: "po zbiorze"
+    group: retencja
+    priority: 4
+    investment: false
+    lead_time: miesiące
+    when_text: "Zaplanuj przy najbliższej zmianie układu upraw (po zbiorze)."
+    message: "Stok jest stromy: wprowadź pasy trawy w poprzek stoku albo uprawę pasową."
+    why: "Nachylenie na 10% działki przekracza {slope_p90_deg}° (próg {threshold_deg}° dla tej gleby)."
+    effect: "Przerywa spływ po stoku, ogranicza erozję i zwiększa wsiąkanie."
+    sources: ["Katalog działań NWRM (nwrm.eu): uprawa pasowa i pasy buforowe na stokach"]
+
+  R14:
+    title: "Zostaw pas zieleni przy cieku"
+    when_short: "wiosna lub koniec lata"
+    group: retencja
+    priority: 5
+    investment: false
+    lead_time: tygodnie
+    when_text: "Pas zakładaj wiosną lub pod koniec lata."
+    message: "Zostaw pas zieleni wzdłuż cieku przy działce."
+    why: "Ciek płynie ok. {distance_m} m od działki."
+    effect: "Pas buforowy zatrzymuje spływ i glebę zanim trafią do cieku."
+    sources: ["Katalog działań NWRM (nwrm.eu): strefy buforowe wzdłuż cieków"]
+
+  R1:
+    title: "Orz i siej w poprzek stoku"
+    when_short: "przy siewie"
+    group: agrotechnika
+    priority: 1
+    investment: false
+    lead_time: przy najbliższym siewie
+    when_text: "Przy najbliższej uprawie i siewie."
+    message: "Uprawiaj i siej w poprzek stoku, nie wzdłuż."
+    why: "Nachylenie na 10% działki przekracza {slope_p90_deg}°, a {crop_name} to uprawa rzędowa, przy której woda łatwo spływa międzyrzędziami."
+    effect: "Bruzdy w poprzek stoku zatrzymują wodę i ograniczają spływ."
+    sources: ["Katalog działań NWRM (nwrm.eu): uprawa konturowa"]
+
+  # ---------------------------------------------------------------- reguły pogodowe i glebowe
+  R8:
+    title: "Zwiększ ilość próchnicy w glebie"
+    when_short: "po zbiorze"
+    group: retencja
+    priority: 6
+    investment: false
+    lead_time: lata
+    when_text: "Po zbiorze: międzyplon, obornik lub kompost; efekt narasta przez kilka sezonów."
+    message: "Zwiększaj ilość próchnicy w glebie: lekka gleba z małą ilością materii organicznej słabo trzyma wodę."
+    why: "Większość działki to gleba lekka, a w wierzchniej warstwie jest mało materii organicznej."
+    effect: "Więcej próchnicy zwiększa zdolność gleby do zatrzymywania wody; efekt jest stopniowy."
+    sources: ["Katalog działań NWRM (nwrm.eu): zwiększanie materii organicznej w glebie"]
+
+  R15:
+    title: "Oszczędzaj wodę w glebie przed suchym okresem"
+    group: agrotechnika
+    priority: 0
+    investment: false
+    lead_time: tygodnie
+    message_forecast: "W wybranym okresie grozi niedobór wody: oszczędzaj wodę w glebie przed tym terminem."
+    message_history: "Przygotuj się na niedobór wody w okresie największego ryzyka dla tej uprawy."
+    when_forecast: "Zanim zacznie brakować wody w glebie, najpewniej {when_text}."
+    when_history: "Najczęściej w {months}."
+    why_forecast: "W wybranym okresie {chance_text}."
+    why_history: "Na tym polu niedobory wody w czasie wzrostu {frequency_text}."
+    action: "Ogranicz straty wody z gleby: płytka uprawa zamiast głębokiej przed siewem, resztki pożniwne jako mulcz, terminowy siew."
+    effect: "Mniej parowania z gleby i lepsze wykorzystanie wody zgromadzonej po zimie."
+    sources: ["FAO-56: bilans wody w strefie korzeniowej", "Kodeks Dobrej Praktyki Rolniczej (MRiRW)"]
+
+  R7:
+    title: "Orz rzadziej i zostaw resztki roślin na polu"
+    when_short: "po zbiorze i przed siewem"
+    group: agrotechnika
+    priority: 2
+    investment: false
+    lead_time: tygodnie
+    when_text: "Po zbiorze i przed siewem: zostaw resztki na polu, ogranicz orkę wiosenną."
+    message: "Gleba lekka szybko traci wodę: zostaw resztki roślin jako mulcz i ogranicz orkę."
+    why: "Większość działki to gleba lekka (piaszczysta), która słabo zatrzymuje wodę."
+    effect: "Mulcz ogranicza parowanie z powierzchni gleby."
+    sources: ["Katalog działań NWRM (nwrm.eu): uprawa konserwująca i mulczowanie"]
+
+  R16:
+    title: "Postaw na terminy zabiegów, nie na drogą retencję"
+    group: agrotechnika
+    priority: 3
+    investment: false
+    lead_time: null
+    when_text: null
+    message: "Zatrzymanie wody na tej działce niewiele zmieni: główną przyczyną jest brak opadu."
+    why: "Susze wynikają tu głównie z małej ilości deszczu; gleba i ukształtowanie terenu nie powodują dużych strat wody."
+    effect: "Lepiej skupić się na terminach zabiegów i doborze odmian niż na kosztownej retencji."
+    sources: ["SPEC §5.2 (R16)"]
+
+  IRR:
+    title: "Zaplanuj nawadnianie"
+    group: nawadnianie
+    priority: 1
+    investment: true
+    lead_time: dni
+    message: "Jeśli masz źródło wody, nawadnianie uzupełni niedobór w wybranym okresie."
+    message_confirmed: "Zaplanuj nawadnianie: w wybranym okresie zabraknie wody w glebie."
+    why: "W wybranym okresie roślinom może zabraknąć {amount} wody na całą działkę ({area} ha)."
+    when_text: "Gdy zacznie brakować wody, najpewniej {when_text}; podlewaj, zanim rośliny zaczną więdnąć."
+    effect: "Uzupełnienie wody w okresie niedoboru ogranicza straty plonu."
+    consult_extra: "Pobór wody do nawadniania (studnia, ciek) może wymagać zgody wodnoprawnej – sprawdź w Wodach Polskich."
+    sources: ["FAO-56: bilans wody i współczynnik stresu Ks"]

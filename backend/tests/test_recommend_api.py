@@ -1,0 +1,120 @@
+"""/api/recommend: walidacja, 409 bez pogody, kolejność grup, niezmienniki wyniku."""
+
+import gzip
+import json
+from datetime import date, timedelta
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.terrain import analysis as A
+from conftest import FIXTURES
+from synthetic_meteo import generate
+
+PID = "046101_1.0445.7"
+
+
+@pytest.fixture(scope="module")
+def context() -> dict:
+    raw = json.loads((FIXTURES / f"context_{PID}_partial.json").read_text())
+    g = A.parse_aaigrid(gzip.open(FIXTURES / f"nmt_{PID}.asc.gz").read().decode())
+    raw["terrain"] = A.compute(g, raw["parcel"]["rings"][0], 50)
+    # SYNTETYCZNA pogoda (tests/synthetic_meteo.py) od 2015 r., żeby objąć 10 lat przed D = 2025-06-01
+    raw["meteo"] = {"daily": generate(date(2015, 3, 1), date.today()), "forecast": [], "resolution": "SYNTETYCZNE"}
+    raw["as_of"] = date.today().isoformat()
+    return raw
+
+
+def body(ctx, frm=None, to=None, **answers):
+    frm = frm or date.today()
+    to = to or frm + timedelta(days=30)
+    return {"context": ctx, "request": {"crop": "zboza_ozime", "range": {"from": frm.isoformat(), "to": to.isoformat()},
+                                        "answers": answers}}
+
+
+client = TestClient(app)
+
+
+def test_ok_and_invariants(context):
+    r = client.post("/api/recommend", json=body(context))
+    assert r.status_code == 200, r.text
+    res = r.json()
+    groups = [x["group"] for x in res["recommendations"]]
+    order = {"retencja": 0, "agrotechnika": 1, "nawadnianie": 2}
+    assert groups == sorted(groups, key=order.get)                  # retencja → agrotechnika → nawadnianie
+    assert 1 <= len(res["recommendations"]) <= 5
+    assert all(x["evidence"] for x in res["recommendations"])
+    assert all(x["confidence_reason"] for x in res["recommendations"])      # każda pewność ma wyjaśnienie
+    assert all(x["title"] for x in res["recommendations"])                  # każda rada ma krótki tytuł
+    assert res["recommendations"][0]["rule"] == "R11"
+    assert {c["code"] for c in res["causes"]} == {"C1", "C2", "C3", "C4"}
+    assert 1 <= len(res["uncertainty"]["reasons"]) <= 4
+    assert any(n["rule"] == "R14" for n in res["not_evaluated"])
+
+
+def test_site_answer_roundtrip(context):
+    res = client.post("/api/recommend", json=body(context, sites={"ditch0": True})).json()
+    r11 = next(x for x in res["recommendations"] if x["rule"] == "R11")
+    assert r11["conditional"] is False and r11["confidence"] == "wysoka"
+
+
+def test_november_analysis(context):
+    """D w listopadzie: KBW poza okresem, prognoza poza sezonem dla zbóż jarych, podatność z 10 lat policzona."""
+    b = body(context)
+    b["request"]["crop"] = "zboza_jare"
+    res = client.post("/api/recommend", json=b).json()
+    if date.today().month in (11, 12, 1, 2):
+        assert res["state"]["kbw"]["status"] == "poza_okresem"
+        assert res["forecast"]["status"] == "poza_sezonem_uprawy"
+        assert "poza sezonem wzrostu" in res["state"]["headline"]
+        assert "scenariusz" not in res["state"]["headline"] and " z 10" not in res["state"]["headline"]
+        assert "poza sezonem monitoringu" in res["state"]["headline_technical"]
+    assert res["susceptibility"]["of"] == 10
+    assert {c["code"]: c["confidence"] for c in res["causes"]}["C4"] == "niska"
+
+
+def test_in_season_forecast_and_irrigation_last(context):
+    frm = date(2025, 6, 1)
+    res = client.post("/api/recommend", json=body(context, frm, frm + timedelta(days=60))).json()
+    f = res["forecast"]
+    assert f["status"] == "ok" and f["stress_chance"]["of"] == 10 and 0 <= f["stress_chance"]["n"] <= 10
+    assert f["deficit_mm"]["low"] <= f["deficit_mm"]["median"] <= f["deficit_mm"]["high"]
+    assert res["state"]["soil_water"]["taw_mm"]["low"] < res["state"]["soil_water"]["taw_mm"]["high"]
+    groups = [r["group"] for r in res["recommendations"]]
+    if "nawadnianie" in groups:
+        assert groups[-1] == "nawadnianie"                          # G2: nawadnianie zawsze ostatnie
+        irr = res["recommendations"][-1]
+        assert irr["conditional"] and "zgody wodnoprawnej" in irr["consult_note"]
+    no_water = client.post("/api/recommend", json=body(context, frm, frm + timedelta(days=60),
+                                                       irrigation_water=False)).json()
+    assert "nawadnianie" not in [r["group"] for r in no_water["recommendations"]]
+
+
+def test_meteo_range_409(context):
+    ctx = dict(context, meteo={"daily": generate(date(2020, 3, 1), date.today()), "forecast": [], "resolution": "S"})
+    r = client.post("/api/recommend", json=body(ctx, date(2025, 6, 1)))
+    assert r.status_code == 409 and r.json()["detail"]["error"] == "meteo_range"
+
+
+def test_meteo_missing_409(context):
+    ctx = dict(context, meteo=None)
+    r = client.post("/api/recommend", json=body(ctx))
+    assert r.status_code == 409 and r.json()["detail"]["error"] == "meteo_missing"
+
+
+@pytest.mark.parametrize("frm,to", [
+    (date.today() + timedelta(days=1), None),                       # przyszłość
+    (date.today() - timedelta(days=366 * 11), None),                # > 10 lat wstecz
+    (date.today() - timedelta(days=300), date.today()),             # > 6 miesięcy
+    (date.today(), date.today() - timedelta(days=1)),               # koniec przed początkiem
+])
+def test_invalid_range_422(context, frm, to):
+    r = client.post("/api/recommend", json=body(context, frm, to))
+    assert r.status_code == 422 and r.json()["detail"]["error"] == "invalid_request"
+
+
+def test_unknown_crop_422(context):
+    b = body(context)
+    b["request"]["crop"] = "banan"
+    assert client.post("/api/recommend", json=b).status_code == 422

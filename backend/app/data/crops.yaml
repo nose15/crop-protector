@@ -1,0 +1,132 @@
+# Parametry upraw do bilansu wody FAO-56.
+# Źródło liczb Kc, Zr, p, długości faz: Allen i in. 1998, FAO Irrigation and Drainage Paper 56,
+#   tabele 11, 12, 22 (https://www.fao.org/4/x0490e/x0490e0b.htm, x0490e0e.htm), pobrane 21.11.2026.
+# Uproszczenia (heurystyki, do konsultacji z mentorem):
+#   - bez korekty Kc_mid/Kc_end na klimat (brak RHmin i wiatru w danych);
+#   - Kc_end podany zakresem w FAO → bierzemy wartość z opisu w kolumnie `kc_note`;
+#   - start sezonu: uprawy jare – heurystyczna data siewu (albo `sowing_date` od rolnika);
+#     oziminy, rzepak i użytki zielone – początek wegetacji: pierwszy dzień od 1 marca, od którego
+#     średnia 5-dniowa temperatury dobowej utrzymuje się ≥ 5°C (definicja okresu wegetacyjnego
+#     w agrometeorologii); wtedy zaczyna się faza początkowa po zimie.
+#   - poza sezonem uprawy Kc = kc_off (gleba nieobsiana lub ściernisko; heurystyka).
+
+kc_off: {value: 0.3, source: "heurystyka: parowanie z gleby bez okrywy / ścierniska"}
+kc_dormant_winter: {value: 0.4, source: "FAO-56 tab. 12: pszenica ozima, Kc_ini przy zamarzniętej glebie"}
+vegetation_start_temp_c: {value: 5.0, source: "agrometeorologia: okres wegetacyjny przy średniej dobowej ≥ 5°C"}
+vegetation_start_window_days: {value: 5, source: "heurystyka: średnia krocząca 5 dni"}
+
+crops:
+  zboza_ozime:
+    name: "Zboża ozime"
+    fao_crop: "Winter Wheat (frozen soils)"
+    kc: {ini: 0.4, mid: 1.15, end: 0.3}
+    kc_note: "Kc_end 0,25–0,4 w FAO; przyjęto 0,3"
+    zr_m: [1.5, 1.8]
+    p: 0.55
+    start: vegetation
+    stages_days: [20, 25, 60, 30]
+    stages_note: "FAO-56 tab. 11 nie ma wiersza dla ozimin w Europie; po starcie wegetacji fazy jak zboża jare 35–45°N (20/25/60/30) – heurystyka"
+    critical_stage: mid
+
+  zboza_jare:
+    name: "Zboża jare"
+    fao_crop: "Spring Wheat / Barley / Oats"
+    kc: {ini: 0.3, mid: 1.15, end: 0.3}
+    kc_note: "Kc_end 0,25 (jęczmień, owies) – 0,4 (pszenica); przyjęto 0,3"
+    zr_m: [1.0, 1.5]
+    p: 0.55
+    start: sowing
+    sowing_mmdd: "04-01"
+    sowing_note: "heurystyka: siew zbóż jarych zwykle koniec marca – połowa kwietnia"
+    stages_days: [20, 25, 60, 30]
+    stages_note: "FAO-56 tab. 11: Barley/Oats/Wheat, 35–45°N, siew marzec/kwiecień"
+    critical_stage: mid
+
+  kukurydza_ziarno:
+    name: "Kukurydza na ziarno"
+    fao_crop: "Maize, Field (grain)"
+    kc: {ini: 0.3, mid: 1.20, end: 0.35}
+    kc_note: "Kc_end 0,35 przy zbiorze po wyschnięciu ziarna (FAO)"
+    zr_m: [1.0, 1.7]
+    p: 0.55
+    start: sowing
+    sowing_mmdd: "05-01"
+    sowing_note: "heurystyka: siew kukurydzy zwykle koniec kwietnia – początek maja"
+    stages_days: [30, 40, 50, 50]
+    stages_note: "FAO-56 tab. 11: Maize (grain), Idaho USA, siew kwiecień"
+    critical_stage: mid
+
+  kukurydza_kiszonka:
+    name: "Kukurydza na kiszonkę"
+    fao_crop: "Maize, Field (grain) – zbiór przy wysokiej wilgotności"
+    kc: {ini: 0.3, mid: 1.20, end: 0.60}
+    kc_note: "Kc_end 0,60 przy zbiorze przy wysokiej wilgotności ziarna (FAO)"
+    zr_m: [1.0, 1.7]
+    p: 0.55
+    start: sowing
+    sowing_mmdd: "05-01"
+    sowing_note: "heurystyka: jak kukurydza na ziarno"
+    stages_days: [30, 40, 50, 30]
+    stages_note: "FAO-56 tab. 11: Maize (grain), Hiszpania/Kalifornia (krótsza faza końcowa, zbiór wcześniej)"
+    critical_stage: mid
+
+  rzepak:
+    name: "Rzepak"
+    fao_crop: "Rapeseed, Canola"
+    kc: {ini: 0.35, mid: 1.07, end: 0.35}
+    kc_note: "Kc_mid 1,0–1,15 w FAO; przyjęto środek 1,07"
+    zr_m: [1.0, 1.5]
+    p: 0.60
+    start: vegetation
+    stages_days: [20, 30, 45, 30]
+    stages_note: "FAO-56 tab. 11 nie zawiera rzepaku; fazy po starcie wegetacji – heurystyka (zbiór ok. połowy lipca)"
+    critical_stage: mid
+
+  ziemniak:
+    name: "Ziemniaki"
+    fao_crop: "Potato"
+    kc: {ini: 0.5, mid: 1.15, end: 0.75}
+    zr_m: [0.4, 0.6]
+    p: 0.35
+    start: sowing
+    sowing_mmdd: "04-20"
+    sowing_note: "heurystyka: sadzenie ziemniaków zwykle druga połowa kwietnia"
+    stages_days: [30, 35, 50, 30]
+    stages_note: "FAO-56 tab. 11: Potato, Europe, sadzenie kwiecień"
+    critical_stage: mid
+
+  burak_cukrowy:
+    name: "Burak cukrowy"
+    fao_crop: "Sugar Beet"
+    kc: {ini: 0.35, mid: 1.20, end: 0.70}
+    zr_m: [0.7, 1.2]
+    p: 0.55
+    start: sowing
+    sowing_mmdd: "04-05"
+    sowing_note: "heurystyka: siew buraka zwykle koniec marca – połowa kwietnia"
+    stages_days: [50, 40, 50, 40]
+    stages_note: "FAO-56 tab. 11: Sugarbeet, Idaho USA, siew kwiecień"
+    critical_stage: mid
+
+  uzytki_zielone:
+    name: "Użytki zielone"
+    fao_crop: "Grazing Pasture – Rotated Grazing"
+    kc: {ini: 0.40, mid: 0.95, end: 0.85}
+    kc_note: "Kc_mid 0,85–1,05 w FAO; przyjęto środek 0,95"
+    zr_m: [0.5, 1.5]
+    p: 0.60
+    start: vegetation
+    stages_days: [10, 20, 150, 30]
+    stages_note: "FAO-56 tab. 11: Grass Pasture 10/20 dni; faza środkowa do końca września i końcowa w październiku – heurystyka"
+    critical_stage: mid
+    no_kbw: true
+
+# Zapas wody dostępnej (WOD/TAW) z kategorii IUNG. Granice kategorii: Dz.U. 2019 poz. 739 (objaśnienia).
+# Wartości dotyczą głębokości 1,5 m (tak przyjęto w SPEC) i są przeliczane liniowo na Zr.
+# Kategorie I i IV mają w rozporządzeniu tylko jedną granicę – drugą przyjęto heurystycznie.
+taw_by_category_mm_per_1_5m:
+  I:       {low: 90.0,  high: 127.5, source: "rozporządzenie: < 127,5 mm; dolna granica 90 mm – heurystyka"}
+  II:      {low: 127.5, high: 169.9, source: "rozporządzenie"}
+  III:     {low: 170.0, high: 202.5, source: "rozporządzenie"}
+  IV:      {low: 202.5, high: 250.0, source: "rozporządzenie: > 202,5 mm; górna granica 250 mm – heurystyka"}
+  organic: {low: 202.5, high: 300.0, source: "heurystyka: gleby organiczne mają dużą pojemność wodną"}

@@ -1,0 +1,47 @@
+/* Dodatki tej aplikacji do stylu „Pole z lotu ptaka” (tokens.css + components.css bez zmian). */
+
+/* znaczniki terenu: kształt + kolor (kolor nie jest jedynym nośnikiem znaczenia) */
+.map-marker { display: grid; place-items: center; }
+.mk { display: block; width: 100%; height: 100%; border: 2.5px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .45); }
+.mk-ditch { background: #21D4B4; border-radius: 4px; }                         /* rów: kwadrat */
+.mk-pond { background: var(--water); border-radius: 50%; }                     /* oczko: koło */
+.mk-wet_spot { background: transparent; border: 4px solid #5FD3FF; border-radius: 50%; box-shadow: 0 0 0 2px #fff, 0 1px 4px rgba(0, 0, 0, .45); } /* zastoisko: pierścień */
+.mk-outlet { background: #E3A51C; border: 0; box-shadow: none; clip-path: polygon(50% 4%, 96% 92%, 4% 92%); } /* odpływ: trójkąt */
+.mk-low { background: var(--muted); border-radius: 3px; transform: rotate(45deg) scale(.8); } /* najniższy punkt: romb */
+.map-marker.active .mk { box-shadow: 0 0 0 3px var(--ink), 0 1px 4px rgba(0, 0, 0, .45); }
+.mk.lg { display: inline-block; width: 15px; height: 15px; margin-right: 8px; vertical-align: -2px; box-shadow: none; border-color: var(--paper); }
+.mk-outlet.lg { width: 16px; }
+.maplegend .mk-wet_spot.lg { border-width: 3px; box-shadow: 0 0 0 1px var(--line-2); }
+
+/* dymki mapy */
+.popup-go { margin-top: 10px; }
+.popup-q { display: grid; gap: 6px; margin-top: 10px; font-weight: 700; }
+.leaflet-popup-content-wrapper { border-radius: var(--r-md); }
+
+/* panel */
+.load-h { font-size: 1.45rem; font-weight: 800; margin: 2px 0 6px; }
+.pi-err { margin: 16px 22px 0; }
+.det.refine { margin-top: 14px; }
+.det.refine .body .sbtn { margin-top: 10px; }
+.qa .q > span:first-child { min-width: 0; }
+.verdict h1 { text-wrap: balance; }
+.refs { margin: 4px 0 0 18px; padding: 0; display: grid; gap: 8px; font-size: .9rem; color: var(--ink-2); }
+.refs b { color: var(--ink); }
+.prose ol { padding-left: 20px; }
+
+@media print {
+  .app { display: block !important; position: static; }
+  #map, .topbar, .map-fade, .maplegend, .season-hint, .skip { display: none !important; }
+  .panel { position: static; width: auto; box-shadow: none; overflow: visible; }
+  .panel details { display: block; }
+}
+
+/* pasek w widoku zablokowanym na działce */
+.field.locked { cursor: default; }
+.field.locked:hover { background: transparent; }
+.lockrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .98rem; color: var(--ink); }
+.lockrow svg { color: var(--crop); flex: none; }
+.lockrow .linkbtn { padding: 2px 4px; font-size: .9rem; }
+.refs-h { font-size: .98rem; margin: 16px 0 6px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+@media print { details > summary::after { display: none; } .det-head .tools-row { display: none; } }

@@ -1,0 +1,52 @@
+# Progi analizy terenu (NMT GUGiK 1 m, liczone na siatce 2 m).
+# Każdy próg ma źródło albo jest jawnie oznaczony jako heurystyka do konsultacji z mentorem.
+
+depression:
+  min_depth_m:
+    value: 0.10
+    source: "heurystyka: rząd dokładności wysokościowej NMT z LiDAR (ok. 0,1–0,2 m); płytsze zagłębienia to raczej szum i mikrorzeźba"
+  min_area_m2:
+    value: 50
+    source: "heurystyka z prototypu"
+  near_parcel_m:
+    value: 20
+    source: "heurystyka: zagłębienia i rowy do 20 m od granicy działki uznajemy za związane z działką"
+
+ditch:
+  # Rów w NMT: przepustów pod drogami nie widać, więc odcinek rowu między nasypami wygląda jak wąska, głęboka niecka.
+  max_effective_width_m:
+    value: 6
+    source: "heurystyka: typowy rów melioracyjny ma szerokość w koronie ok. 2–5 m"
+  min_elongation:
+    value: 3
+    source: "heurystyka: wydłużenie P²/(4πA); koło = 1, pas 3×100 m ≈ 11"
+  min_depth_m:
+    value: 0.25
+    source: "heurystyka: rowy mają zwykle głębokość 0,5–1,5 m"
+
+pond:
+  min_depth_m:
+    value: 0.30
+    source: "heurystyka: płytsze zagłębienia to okresowe zastoiska, nie miejsce na oczko"
+  min_area_m2:
+    value: 200
+    source: "heurystyka"
+  min_inside_parcel_share:
+    value: 0.5
+    source: "heurystyka: proponujemy oczko tylko tam, gdzie większość zagłębienia leży na działce"
+
+wet_spot:
+  min_inside_parcel_share:
+    value: 0.5
+    source: "heurystyka"
+
+flow:
+  path_min_catchment_m2:
+    value: 2000
+    source: "heurystyka z prototypu"
+  outlet_min_catchment_m2:
+    value: 1000
+    source: "heurystyka z prototypu"
+  flat_terrain_p90_deg:
+    value: 2.0
+    source: "heurystyka: przy mniejszym nachyleniu kierunki spływu D8 wyznacza głównie mikrorzeźba (koleiny, redliny)"

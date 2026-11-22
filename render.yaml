@@ -1,0 +1,34 @@
+# Render Blueprint: backend (FastAPI) + frontend (statyczny Vite). Wdrożenie: Render → New → Blueprint → to repo.
+# Frontend woła backend pod adresem z VITE_API_URL (host backendu wstawiany automatycznie); CORS w backendzie
+# przepuszcza każdą domenę, więc nie ma błędów CORS.
+services:
+  - type: web
+    name: zatrzymaj-wode-api
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      # opcjonalnie, gdy będzie opis wyniku przez Claude:
+      # - key: ANTHROPIC_API_KEY
+      #   sync: false
+
+  - type: web
+    name: zatrzymaj-wode
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: zatrzymaj-wode-api
+          property: host

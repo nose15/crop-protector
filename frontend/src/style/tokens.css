@@ -1,0 +1,45 @@
+/* Tokeny stylu „Pole z lotu ptaka” (wydzielone z aplikacji Susza na działce).
+   Krój Atkinson Hyperlegible (dla osób słabowidzących), duży tekst, wysoki kontrast na żądanie. */
+:root {
+  --ink: #1A1F1C;          /* ciemna ziemia – tekst */
+  --ink-2: #3A433D;
+  --muted: #56615A;        /* kontrast >= 4.5:1 na bieli */
+  --line: #DDE3DD;
+  --line-2: #C6CFC7;
+  --paper: #FFFFFF;
+  --mist: #F1F4F1;         /* tło kafli */
+  --crop: #2F6B3B;         /* zieleń uprawy – kolor główny */
+  --crop-2: #25562F;
+  --grain: #E8C547;        /* dojrzałe zboże – przycisk */
+  --water: #1F6FA8;        /* woda */
+  --water-bg: #E6F0F8;
+  --red: #B42E1A; --red-bg: #FBE9E5;
+  --amber: #8F5A00; --amber-bg: #FCF0D2; --amber-mid: #D9A21B;
+  --green: #2F6B3B; --green-bg: #E4F1E6;
+  --grey-bg: #ECEFEC;
+  --focus: #1F6FA8;
+  --r-xl: 22px; --r-lg: 16px; --r-md: 12px; --r-sm: 9px;
+  --shadow: 0 2px 6px rgba(20, 35, 25, .08), 0 18px 40px rgba(20, 35, 25, .16);
+  --panel-w: 460px;
+  --top-h: 76px;
+  --gap: 14px;
+  --font: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+}
+html[data-text="1"] { font-size: 17px; }
+html[data-text="2"] { font-size: 19px; }
+html[data-text="3"] { font-size: 21px; }
+html[data-contrast="high"] {
+  --ink: #000; --ink-2: #000; --muted: #1E241F; --line: #6B746C; --line-2: #3D453F; --mist: #F4F6F4;
+  --red: #8E1F0F; --amber: #6A4300; --green: #1E4D27; --crop: #1E4D27; --water: #0E4F80;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; color: var(--ink); background: #2A3A30; }
+body { font: 1rem/1.55 var(--font); -webkit-font-smoothing: antialiased; }
+h1, h2, h3, h4 { font-family: var(--font); line-height: 1.2; margin: 0; letter-spacing: -.005em; }
+button, input, select { font: inherit; color: inherit; }
+a { color: var(--water); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+.skip { position: absolute; left: 12px; top: -60px; z-index: 3000; background: var(--paper); padding: 10px 14px; border-radius: var(--r-sm); font-weight: 700; }
+.skip:focus { top: 12px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
