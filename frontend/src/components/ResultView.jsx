@@ -6,7 +6,7 @@ import Seg from "./Seg.jsx";
 import Sources from "./Sources.jsx";
 import ScienceSources from "./ScienceSources.jsx";
 import {
-  CAUSE, CONF, CROP_NAME, GROUP, fmt, gauge, kbwBar, nextDays, seasonNote, topActions, verdict,
+  CAUSE, CONF, CROP_NAME, GROUP, fmt, formatDate, gauge, kbwBar, nextDays, seasonNote, topActions, verdict,
 } from "../lib/present.js";
 
 const SOIL = { I: "bardzo lekka (piaszczysta)", II: "lekka", III: "średnia", IV: "ciężka", organic: "organiczna" };
@@ -215,7 +215,7 @@ export default function ResultView({ parcel, request, result, context, answers, 
         <span className="id">{parcel.id}</span>
         <span>{fmt(parcel.area_ha, 2)} ha</span>
         <span>{CROP_NAME[request.crop]}</span>
-        <span>{request.range.from} – {request.range.to}</span>
+        <span>{formatDate(request.range.from)} – {formatDate(request.range.to)}</span>
       </div>
       {parcel.found_by === "adres" && (
         <p className="note">Działka pod adresem {parcel.address}. Jeśli Twoje pole jest obok, kliknij „Zmień działkę” i wskaż je na mapie.</p>

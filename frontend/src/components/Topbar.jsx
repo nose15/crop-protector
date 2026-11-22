@@ -2,16 +2,8 @@
 // dostępność (A−, A+, wysoki kontrast) i link do opisu metody.
 import { forwardRef } from "react";
 import { BrandMark, ContrastIcon } from "./Icons.jsx";
-import { CROPS, SOWN, iso } from "../lib/present.js";
-
-/** Ta sama reguła co weather.shift_year: części UTC napisu RRRR-MM-DD, 29 lutego → 28 lutego. */
-function shiftIsoYear(isoDate, years) {
-  const [y, m, d] = isoDate.split("-").map(Number);
-  const year = y + years;
-  const utc = new Date(Date.UTC(year, m - 1, d));
-  const day = utc.getUTCDate() === d ? d : 28;
-  return new Date(Date.UTC(year, m - 1, day)).toISOString().slice(0, 10);
-}
+import DateField from "./DateField.jsx";
+import { CROPS, SOWN, iso, shiftIsoYear } from "../lib/present.js";
 
 const Topbar = forwardRef(function Topbar(
   { q, onQ, request, onRequest, onSubmit, busy, textSize, onTextSize, contrast, onContrast, onInfo, locked, onUnlock }, ref,
@@ -57,9 +49,8 @@ const Topbar = forwardRef(function Topbar(
         </label>
         <label className="field">
           <span>Od</span>
-          <input type="date" value={request.range.from} min={minFrom} max={today}
-            onChange={(e) => {
-              const from = e.target.value;
+          <DateField value={request.range.from} min={minFrom} max={today}
+            onChange={(from) => {
               let to = request.range.to;
               if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
                 const limit = shiftIsoYear(from, 2);
@@ -71,12 +62,13 @@ const Topbar = forwardRef(function Topbar(
         </label>
         <label className="field">
           <span>Do</span>
-          <input type="date" value={request.range.to} min={request.range.from} max={maxTo}
-            onChange={(e) => set({ range: { ...request.range, to: e.target.value } })} />
+          <DateField value={request.range.to} min={request.range.from} max={maxTo}
+            onChange={(to) => set({ range: { ...request.range, to } })} />
         </label>
         <label className="field" hidden={!showSow}>
           <span>Siew <em>(jeśli znasz)</em></span>
-          <input type="date" value={request.sowing_date || ""} onChange={(e) => set({ sowing_date: e.target.value || null })} />
+          <DateField value={request.sowing_date || ""} allowEmpty
+            onChange={(isoDate) => set({ sowing_date: isoDate })} />
         </label>
         <button type="submit" className="btn-go" disabled={busy}>{busy ? "Sprawdzam…" : "Sprawdź działkę"}</button>
       </form>

@@ -4,6 +4,63 @@
 export const fmt = (x, nd = 0) =>
   x == null || Number.isNaN(Number(x)) ? "—" : Number(x).toLocaleString("pl-PL", { minimumFractionDigits: nd, maximumFractionDigits: nd }).replace("-", "−");
 
+function isoParts(isoDate) {
+  if (typeof isoDate !== "string") return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  if (utc.getUTCFullYear() !== year || utc.getUTCMonth() !== month - 1 || utc.getUTCDate() !== day) return null;
+  return { year, month, day };
+}
+
+/** „22.11.2026”. Z części napisu RRRR-MM-DD, zero wiodące, kropki, bez spacji.
+ *  null, undefined i zły napis → "". */
+export function formatDate(isoDate) {
+  const p = isoParts(isoDate);
+  if (!p) return "";
+  return `${String(p.day).padStart(2, "0")}.${String(p.month).padStart(2, "0")}.${p.year}`;
+}
+
+/** „21 marca 2024”. Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "long", year: "numeric" })
+ *  na new Date(rok, miesiącIndex, dzień) złożonym z części, potem dzień, miesiąc i rok
+ *  sklejone jedną spacją (formatToParts), żeby silnik nie wstawił innej spacji.
+ *  null i zły napis → "". */
+export function formatDateLong(isoDate) {
+  const p = isoParts(isoDate);
+  if (!p) return "";
+  const parts = new Intl.DateTimeFormat("pl-PL", {
+    day: "numeric", month: "long", year: "numeric",
+  }).formatToParts(new Date(p.year, p.month - 1, p.day));
+  const day = parts.find((part) => part.type === "day")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const year = parts.find((part) => part.type === "year")?.value;
+  if (!day || !month || !year) return "";
+  return `${day} ${month} ${year}`;
+}
+
+/** „22.11.2026” albo „2.1.2026” → "2026-11-22" / "2026-01-02". Inna maska i nieistniejący dzień → null. */
+export function parsePlDate(text) {
+  if (typeof text !== "string") return null;
+  const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(text.trim());
+  if (!m) return null;
+  const iso = `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  return isoParts(iso) ? iso : null;
+}
+
+/** Ta sama reguła co weather.shift_year. 29 lutego w roku bez tego dnia → dzień 28. Reszta dat bez zmian. */
+export function shiftIsoYear(isoDate, years) {
+  const p = isoParts(isoDate);
+  if (!p) return "";
+  const year = p.year + years;
+  const utc = new Date(Date.UTC(year, p.month - 1, p.day));
+  const same = utc.getUTCFullYear() === year && utc.getUTCMonth() === p.month - 1 && utc.getUTCDate() === p.day;
+  const day = same ? p.day : 28;
+  return `${year}-${String(p.month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 export const CROPS = [
   ["zboza_ozime", "Zboża ozime"],
   ["zboza_jare", "Zboża jare"],
