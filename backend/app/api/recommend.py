@@ -6,11 +6,12 @@ from fastapi import APIRouter, HTTPException
 
 from app import cache
 from app.engine.assemble import build
+from app.engine.weather import shift_year
 from app.models import AnalysisResult, RecommendBody
 
 router = APIRouter()
 MAX_YEARS_BACK = 10
-MAX_RANGE_DAYS = 184          # ok. 6 miesięcy
+MAX_RANGE_YEARS = 2
 
 
 def _invalid(msg: str):
@@ -32,8 +33,8 @@ async def post_recommend(body: RecommendBody):
         _invalid("Początek zakresu nie może być w przyszłości: prognoza zaczyna się od dziś.")
     if rng.from_ < today - timedelta(days=366 * MAX_YEARS_BACK):
         _invalid("Początek zakresu może być najwyżej 10 lat wstecz.")
-    if (rng.to - rng.from_).days > MAX_RANGE_DAYS:
-        _invalid("Zakres dat może mieć najwyżej 6 miesięcy.")
+    if rng.to > shift_year(rng.from_, MAX_RANGE_YEARS):
+        _invalid("Zakres dat może mieć najwyżej 2 lata.")
     if body.context.meteo is None:
         raise HTTPException(409, {"error": "meteo_missing",
                                   "message": "Brak danych pogodowych dla działki, więc nie ma oceny. Spróbuj ponownie za chwilę."})

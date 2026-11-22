@@ -1,7 +1,8 @@
 """Stan wody w dniu D, prognoza na zakres dat (scenariusze) i podatność z 10 lat.
 
-Prognoza: od stanu w dniu D do `range.to`. Pierwsze dni (≤ 16) z prognozy pogody, jeśli D = dzień pobrania
-danych; dalej 10 scenariuszy: pogoda z tych samych dni kalendarzowych w każdym z 10 poprzednich lat.
+Prognoza: od stanu w dniu D do `range.to`. Na każdy dzień t od D+1: doba z archiwum (także po D),
+potem prognoza (≤ 16 dni, tylko gdy D = dzień pobrania), potem analog — ten sam dzień k lat wcześniej,
+cofany o całe lata, aż data wypada ≤ D.
 To NIE jest prognoza pogody na miesiące, tylko „co by było, gdyby pogoda była jak w latach X”.
 Wynik jako „n z 10” i przedziały (rozrzut gleby: przebiegi TAW).
 """
@@ -28,24 +29,38 @@ def seasons_for(crop: str, series: Series, years: range, sowing: date | None) ->
     return {y: cropmod.season(crop, y, series, sowing) for y in years}
 
 
-def state_at(series: Series, crop: str, runs: list[balance.TawRun], d: date, sowing: date | None):
-    """Bilans od 1 marca sezonu do D dla każdego przebiegu TAW. Zwraca (stany końcowe, sezony) albo None."""
+def state_at(series: Series, crop: str, runs: list[balance.TawRun], d: date, to: date,
+             sowing: date | None):
+    """Bilans od 1 marca sezonu do D dla każdego przebiegu TAW. Zwraca (stany końcowe, sezony) albo None.
+
+    Sezony sięgają roku `to` włącznie, żeby dzień w roku D+2 miał wpis w słowniku.
+    """
     start = season_start(d)
     days = balance.history_days(series, start, d)
     if days is None:
         return None
-    seasons = seasons_for(crop, series, range(start.year, d.year + 2), sowing)
+    seasons = seasons_for(crop, series, range(start.year, to.year + 1), sowing)
     finals = [balance.simulate(days, crop, seasons, r.taw_mm)[-1] if days else None for r in runs]
     return finals, seasons
 
 
+def _p_et0(v) -> bool:
+    return v is not None and v[0] is not None and v[1] is not None
+
+
 def scenario_days(series: Series, d: date, to: date, k: int, use_forecast: bool) -> list | None:
+    """Pogoda doby t: archiwum, potem prognoza, potem analog cofany całymi latami aż data ≤ D."""
     out, t = [], d + timedelta(days=1)
     while t <= to:
-        v = series.forecast.get(t) if use_forecast else None
-        if v is None or v[0] is None or v[1] is None:
-            v = series.get(shift_year(t, -k))
-            if v is None or v[0] is None or v[1] is None:
+        v = series.get(t)
+        if not _p_et0(v):
+            v = series.forecast.get(t) if use_forecast else None
+        if not _p_et0(v):
+            src = shift_year(t, -k)
+            while src > d:
+                src = shift_year(src, -1)
+            v = series.get(src)
+            if not _p_et0(v):
                 return None
         out.append((t, v[0], v[1]))
         t += timedelta(days=1)

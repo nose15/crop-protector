@@ -1,6 +1,6 @@
 """Szereg dobowy pogody z ParcelContext: słownik data -> (P, ET0, Tmax, Tmin).
 
-Zasady: historię ucinamy na dniu analizy D (ocena „tak, jak wyglądała w dniu D”). Pojedyncze braki
+Zasady: historię ucinamy na dniu analizy D, a gdy podano `through` — na max(D, through). Pojedyncze braki
 (do 2 dni z rzędu) uzupełniamy interpolacją liniową i zgłaszamy w ograniczeniach; dłuższe luki zostają
 brakami, a obliczenia, które na nie trafią, dostają „brak danych” (bez cichych wartości domyślnych).
 """
@@ -57,8 +57,9 @@ def _interp(rows: list[list], col: int) -> int:
     return filled
 
 
-def build_series(meteo: Meteo, d_analysis: date) -> Series:
-    hist = sorted((m for m in meteo.daily if m.date <= d_analysis), key=lambda m: m.date)
+def build_series(meteo: Meteo, d_analysis: date, through: date | None = None) -> Series:
+    end = max(d_analysis, through) if through is not None else d_analysis
+    hist = sorted((m for m in meteo.daily if m.date <= end), key=lambda m: m.date)
     rows = [[getattr(m, f) for f in FIELDS] for m in hist]
     filled = sum(_interp(rows, c) for c in range(4))
     days = {m.date: tuple(r) for m, r in zip(hist, rows)}

@@ -42,7 +42,7 @@ Zasady nadrzędne silnika:
 ```
 
 - Uprawy: `zboza_ozime`, `zboza_jare`, `kukurydza_ziarno`, `kukurydza_kiszonka`, `rzepak`, `ziemniak`, `burak_cukrowy`, `uzytki_zielone`.
-- Dzień analizy D = `range.from` (≤ dziś, ≤ 10 lat wstecz); `range.to` ≤ D + 6 miesięcy.
+- Dzień analizy D = `range.from` (≤ dziś, ≤ 10 lat wstecz); `range.to` ≤ D + 2 lata (ta sama data kalendarzowa, 29 lutego → 28 lutego).
 - Odpowiedzi: `true` / `false` / `null` („nie wiem”). Wszystko działa na samych `null`; `null` daje radę warunkową.
 - `answers.sites`: potwierdzenia rolnika przy znacznikach terenu (np. „Czy w tym miejscu jest rów?”).
 

@@ -7,6 +7,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
+from app.engine.weather import shift_year
 from app.main import app
 from app.terrain import analysis as A
 from conftest import FIXTURES
@@ -106,12 +107,48 @@ def test_meteo_missing_409(context):
 @pytest.mark.parametrize("frm,to", [
     (date.today() + timedelta(days=1), None),                       # przyszłość
     (date.today() - timedelta(days=366 * 11), None),                # > 10 lat wstecz
-    (date.today() - timedelta(days=300), date.today()),             # > 6 miesięcy
+    (date.today(), shift_year(date.today(), 2) + timedelta(days=1)),  # dzień po dwóch latach
+    (date(2024, 2, 29), date(2026, 3, 1)),                          # 29 II + 2 lata = 28 II
     (date.today(), date.today() - timedelta(days=1)),               # koniec przed początkiem
 ])
 def test_invalid_range_422(context, frm, to):
     r = client.post("/api/recommend", json=body(context, frm, to))
     assert r.status_code == 422 and r.json()["detail"]["error"] == "invalid_request"
+
+
+def test_range_longer_than_half_year(context):
+    """Zakres ponad pół roku, koniec w roku D+2: wynik obejmuje całe żądanie."""
+    frm, to = date(2025, 6, 1), date(2027, 5, 22)
+    b = body(context, frm, to)
+    b["request"]["crop"] = "zboza_jare"
+    r = client.post("/api/recommend", json=b)
+    assert r.status_code == 200, r.text
+    res = r.json()
+    f = res["forecast"]
+    assert f["status"] == "ok"
+    assert f["range"] == {"from": frm.isoformat(), "to": to.isoformat()}
+    assert f["stress_chance"]["of"] == 10
+    short = body(context, frm, frm + timedelta(days=184))
+    short["request"]["crop"] = "zboza_jare"
+    short_res = client.post("/api/recommend", json=short).json()
+    assert f["in_season_days"] > short_res["forecast"]["in_season_days"]
+    assert "6 miesięcy" not in res["state"]["headline"]
+    assert "6 miesięcy" not in res["state"]["headline_technical"]
+
+
+def test_out_of_season_headline_without_six_months(context):
+    """Zboża jare w listopadzie–grudniu: komunikat sezonu bez limitu pół roku."""
+    b = body(context, date(2025, 11, 1), date(2025, 12, 15))
+    b["request"]["crop"] = "zboza_jare"
+    r = client.post("/api/recommend", json=b)
+    assert r.status_code == 200, r.text
+    res = r.json()
+    assert res["forecast"]["status"] == "poza_sezonem_uprawy"
+    tech = res["state"]["headline_technical"]
+    assert "Wydłuż zakres dat do wiosny, żeby zobaczyć ryzyko na początku sezonu." in tech
+    assert "6 miesięcy" not in tech
+    assert ("Wybrany okres wypada poza sezonem wzrostu tej uprawy. Wydłuż zakres dat do wiosny, "
+            "żeby zobaczyć, czy na początku sezonu zabraknie wody.") in res["state"]["headline"]
 
 
 def test_unknown_crop_422(context):

@@ -79,8 +79,8 @@ def headline_technical(w: weather_rules.WeatherOutcome) -> str:
         parts.append(f"W wybranym okresie zapas wody w glebie spadnie poniżej bezpiecznego poziomu "
                      f"w {f['stress_chance']['n']} z 10 scenariuszy pogody.")
     elif f.get("status") == "poza_sezonem_uprawy":
-        parts.append("Wybrany okres wypada poza sezonem wzrostu tej uprawy. Wydłuż zakres dat do wiosny "
-                     "(najwyżej 6 miesięcy), żeby zobaczyć ryzyko na początku sezonu.")
+        parts.append("Wybrany okres wypada poza sezonem wzrostu tej uprawy. Wydłuż zakres dat do wiosny, "
+                     "żeby zobaczyć ryzyko na początku sezonu.")
     if s.get("n_ks") is not None:
         parts.append(f"W ostatnich latach niedobór wody w pełni wzrostu wystąpił w {s['n_ks']} z {s['of']} sezonów.")
     return " ".join(parts) or "Brak oceny stanu wody."

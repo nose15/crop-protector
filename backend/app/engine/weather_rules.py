@@ -43,7 +43,7 @@ def evaluate(ctx: ParcelContext, req: RecommendRequest, c2: Cause, c3: Cause | N
     out = WeatherOutcome()
     d, to, crop = req.range.from_, req.range.to, req.crop
     c = cropmod.CROPS[crop]
-    series = build_series(ctx.meteo, d)
+    series = build_series(ctx.meteo, d, through=to)
     if series.filled:
         out.limitations.append("W danych pogodowych brakowało kilku dni; uzupełniliśmy je wartościami z sąsiednich dni.")
     shares = _shares(ctx)
@@ -56,7 +56,7 @@ def evaluate(ctx: ParcelContext, req: RecommendRequest, c2: Cause, c3: Cause | N
 
     # --- TAW i stan w dniu D
     runs = balance.taw_runs(ctx, crop)
-    st = fc.state_at(series, crop, runs, d, req.sowing_date) if runs else None
+    st = fc.state_at(series, crop, runs, d, to, req.sowing_date) if runs else None
     if not runs:
         out.not_evaluated += [NotEvaluated(rule=r, reason="brak mapy gleby") for r in ("R15", "R7", "nawadnianie")]
     elif st is None:

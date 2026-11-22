@@ -4,17 +4,22 @@ import { forwardRef } from "react";
 import { BrandMark, ContrastIcon } from "./Icons.jsx";
 import { CROPS, SOWN, iso } from "../lib/present.js";
 
+/** Ta sama reguła co weather.shift_year: części UTC napisu RRRR-MM-DD, 29 lutego → 28 lutego. */
+function shiftIsoYear(isoDate, years) {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const year = y + years;
+  const utc = new Date(Date.UTC(year, m - 1, d));
+  const day = utc.getUTCDate() === d ? d : 28;
+  return new Date(Date.UTC(year, m - 1, day)).toISOString().slice(0, 10);
+}
+
 const Topbar = forwardRef(function Topbar(
   { q, onQ, request, onRequest, onSubmit, busy, textSize, onTextSize, contrast, onContrast, onInfo, locked, onUnlock }, ref,
 ) {
   const set = (patch) => onRequest({ ...request, ...patch });
   const today = iso(new Date());
-  const minFrom = iso(new Date(Date.now() - 3650 * 864e5));
-  const maxTo = (() => {
-    const d = new Date(request.range.from);
-    d.setMonth(d.getMonth() + 6);
-    return iso(d);
-  })();
+  const minFrom = iso(new Date(Date.now() - 3660 * 864e5));
+  const maxTo = shiftIsoYear(request.range.from, 2);
   const showSow = SOWN.has(request.crop) || request.sowing_date;
 
   return (
@@ -53,7 +58,16 @@ const Topbar = forwardRef(function Topbar(
         <label className="field">
           <span>Od</span>
           <input type="date" value={request.range.from} min={minFrom} max={today}
-            onChange={(e) => set({ range: { ...request.range, from: e.target.value } })} />
+            onChange={(e) => {
+              const from = e.target.value;
+              let to = request.range.to;
+              if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
+                const limit = shiftIsoYear(from, 2);
+                if (to < from) to = from;
+                else if (to > limit) to = limit;
+              }
+              set({ range: { from, to } });
+            }} />
         </label>
         <label className="field">
           <span>Do</span>
