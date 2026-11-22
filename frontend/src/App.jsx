@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getCached, getContext, getParcel, recommend } from "./api/client.js";
+import { getBaseline, getCached, getContext, getParcel, recommend } from "./api/client.js";
 import Topbar from "./components/Topbar.jsx";
 import MapView from "./components/MapView.jsx";
 import MapLegend from "./components/MapLegend.jsx";
@@ -157,6 +157,23 @@ export default function App() {
       if (my === seq.current) setStage(null);
     }
   }
+
+  // Porównanie ze zdjęciami z lat ubiegłych liczy się w tle (openEO, kilka minut, start już przy danych działki).
+  // Gdy wynik ma je „w przygotowaniu”, odpytujemy stan bazy co 15 s i po gotowości sami przeliczamy TEN SAM wynik
+  // (żądanie z wyniku, nie z formularza, który rolnik mógł już zmienić) – bez klikania i bez przeładowania.
+  useEffect(() => {
+    if (!parcel || result?.satellite_check?.state !== "liczenie") return undefined;
+    let alive = true;
+    const timer = setInterval(async () => {
+      try {
+        const b = await getBaseline(parcel.id);
+        if (!alive || !["gotowe", "blad"].includes(b.state)) return;
+        clearInterval(timer);
+        recompute(result.request);
+      } catch { /* serwer chwilowo niedostępny – spróbujemy za 15 s */ }
+    }, 15000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [result, parcel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function answerSite(id, value) {
     const next = { ...request, answers: { ...request.answers, sites: { ...request.answers.sites, [id]: value } } };

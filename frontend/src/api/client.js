@@ -63,6 +63,11 @@ export function recommend(context, request) {
   return call("/api/recommend", { method: "POST", body: JSON.stringify(body) });
 }
 
+/** Stan bazy satelitarnej działki (openEO): {state: "gotowe"|"liczenie"|"blad"|"brak"|"nieskonfigurowane"}. */
+export function getBaseline(id) {
+  return call(`/api/baseline/${encodeURIComponent(id)}`);
+}
+
 /** Czy serwer aplikacji odpowiada (GET /api/status, bez zapytań do usług zewnętrznych). Limit 6 s. */
 export async function getStatus() {
   const ctrl = new AbortController();

@@ -45,7 +45,7 @@ def satellite_check(ctx: ParcelContext, req: RecommendRequest, w: weather_rules.
     state = (s2state or {}).get("state", "brak")
     if not s2base:
         why = {"nieskonfigurowane": "brak konta CDSE, więc porównania ze zdjęciami z lat ubiegłych nie liczymy",
-               "liczenie": "porównanie ze zdjęciami z lat ubiegłych jest w przygotowaniu (kilka minut)",
+               "liczenie": "liczymy porównanie ze zdjęciami z lat ubiegłych; wynik uzupełni się sam za kilka minut",
                "blad": "nie udało się policzyć zdjęć z lat ubiegłych"}.get(state, "brak zdjęć z lat ubiegłych")
         return {"state": state, "signal": None, "reason": why, "agreement": "nie_rozstrzyga"}
     d = req.range.from_

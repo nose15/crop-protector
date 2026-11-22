@@ -51,6 +51,20 @@ async def status():
             "satellite_jobs_running": baseline.running()}
 
 
+@app.get("/api/baseline/{parcel_id:path}")
+async def baseline_state(parcel_id: str):
+    """Stan bazy satelitarnej działki (openEO): gotowe | liczenie | blad | brak | nieskonfigurowane.
+    Frontend odpytuje to, gdy wynik ma porównanie „w przygotowaniu”, i po „gotowe” sam przelicza wynik."""
+    base = baseline.load(parcel_id)
+    if base:
+        return {"state": "gotowe", "obs": len(base.get("obs", [])), "until": base.get("until"),
+                "retrieved_at": base.get("retrieved_at")}
+    st = baseline.status(parcel_id)
+    if st.get("state") == "brak" and not openeo_cdse.configured():
+        st = {"state": "nieskonfigurowane"}
+    return st
+
+
 # Opcjonalnie: zbudowany frontend pod tym samym adresem (jedna usługa, bez CORS). Montowany na końcu,
 # żeby nie przesłaniał /api. Katalog: FRONTEND_DIST albo ../frontend/dist (gdy istnieje).
 _dist = Path(os.environ.get("FRONTEND_DIST", Path(__file__).resolve().parents[2] / "frontend" / "dist"))

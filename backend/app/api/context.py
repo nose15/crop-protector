@@ -14,7 +14,7 @@ from datetime import date, timedelta
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 
-from app import cache
+from app import baseline, cache
 from app.models import ContextRequest, Parcel, ParcelContext, Provenance, Soil
 from app.sources.base import now_iso
 from app.sources.iung import IungSoilAdapter
@@ -104,6 +104,9 @@ async def post_context(body: ContextRequest, request: Request, refresh: bool = F
     if as_of > date.today() or as_of < date.today() - timedelta(days=366 * MAX_YEARS_BACK + 3):
         raise HTTPException(422, {"error": "invalid_request",
                                   "message": "Data analizy musi być z ostatnich 10 lat i nie z przyszłości."})
+    # baza satelitarna z lat ubiegłych (openEO, kilka minut): startuje już teraz, w tle, żeby była gotowa,
+    # zanim rolnik obejrzy wynik; frontend sam przeliczy wynik, gdy baza się pojawi (GET /api/baseline/{numer})
+    baseline.ensure(body.parcel, as_of)
     saved = cache.load(body.parcel.id)
     if saved and not refresh and covers(saved, as_of):
         return saved.model_copy(update={"cache": {**(saved.cache or {}), "hit": True}})
