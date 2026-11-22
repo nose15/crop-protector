@@ -26,7 +26,7 @@ function startView() {
 
 function fitPadding() {
   if (window.innerWidth <= 900) return { padding: [20, 20] };
-  const panel = document.querySelector(".panel")?.getBoundingClientRect().width || 460;
+  const panel = document.querySelector(".panel")?.getBoundingClientRect().width ?? 0;
   const top = document.querySelector(".topbar")?.getBoundingClientRect().height || 76;
   return { paddingTopLeft: [panel + 50, top + 40], paddingBottomRight: [60, 40] };
 }

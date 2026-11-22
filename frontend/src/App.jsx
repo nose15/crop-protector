@@ -212,7 +212,7 @@ export default function App() {
   return (
     <>
       <a className="skip" href="#panel">Przejdź do wyniku</a>
-      <div className="app">
+      <div className={locked ? "app locked" : "app"}>
         <MapView parcel={parcel} locked={locked} level={level} terrain={result ? context?.terrain : null} preview={preview}
           onPick={pick} onCheckPreview={() => check(preview)} busy={!!stage} flyVersion={flyVersion}
           questions={questions} active={active} sites={request.answers.sites} onSiteAnswer={answerSite} focus={focus} />

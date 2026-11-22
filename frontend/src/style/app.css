@@ -36,6 +36,11 @@
   .panel details { display: block; }
 }
 
+/* po zablokowaniu działki karta ma 2/5 viewportu, nie węziej niż 420 px; poniżej 901 px zostaje stos */
+@media (min-width: 901px) {
+  .app.locked { --panel-w: max(420px, 40vw); }
+}
+
 /* pasek w widoku zablokowanym na działce */
 .field.locked { cursor: default; }
 .field.locked:hover { background: transparent; }
