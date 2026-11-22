@@ -95,3 +95,19 @@ html[data-contrast="high"] .dategrid button[aria-pressed="true"] { border: 2px s
 .srv:hover .srv-tip, .srv:focus-visible .srv-tip { display: block; }
 html[data-contrast="high"] .srv { background: #fff; border: 2px solid #000; }
 @media print { .srv { display: none; } }
+
+/* Porównanie satelitarne w trakcie liczenia (SatelliteStatus.jsx) */
+.satstat { display: flex; gap: 11px; align-items: flex-start; margin: 14px 22px 0; padding: 11px 13px;
+  background: var(--water-bg); color: #123E5E; border-radius: var(--r-md); font-size: .9rem; line-height: 1.4; }
+.satstat b { display: block; }
+.satstat small { display: block; font-size: .85rem; color: #24506F; }
+.satstat.done { background: var(--green-bg); color: var(--green); }
+.satstat.done small { color: var(--green); }
+.satspin { flex: none; width: 18px; height: 18px; margin-top: 2px; border-radius: 50%;
+  border: 3px solid rgba(31, 111, 168, .25); border-top-color: var(--water); animation: satspin 1s linear infinite; }
+.satok { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--green); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: .8rem; }
+@keyframes satspin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .satspin { animation: none; border-top-color: rgba(31, 111, 168, .25); border-right-color: var(--water); } }
+html[data-contrast="high"] .satstat { background: #fff; border: 2px solid #000; color: #000; }
+@media print { .satstat { display: none; } }

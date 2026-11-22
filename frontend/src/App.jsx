@@ -4,6 +4,7 @@ import Topbar from "./components/Topbar.jsx";
 import MapView from "./components/MapView.jsx";
 import MapLegend from "./components/MapLegend.jsx";
 import ResultView from "./components/ResultView.jsx";
+import SatelliteStatus from "./components/SatelliteStatus.jsx";
 import ServerStatus from "./components/ServerStatus.jsx";
 import { ErrorState, Loading, Welcome } from "./components/PanelStates.jsx";
 import ScienceSources from "./components/ScienceSources.jsx";
@@ -175,6 +176,25 @@ export default function App() {
     return () => { alive = false; clearInterval(timer); };
   }, [result, parcel]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // widoczny stan porównania satelitarnego: od kiedy się liczy i krótkie „gotowe” po uzupełnieniu wyniku
+  const [satSince, setSatSince] = useState(null);
+  const [satDone, setSatDone] = useState(false);
+  const satState = result?.satellite_check?.state;
+  useEffect(() => {
+    if (satState === "liczenie") {
+      setSatSince((s) => s ?? Date.now());
+      setSatDone(false);
+      return undefined;
+    }
+    if (satSince === null) return undefined;
+    setSatSince(null);
+    if (satState !== "gotowe") return undefined;
+    setSatDone(true);
+    const t = setTimeout(() => setSatDone(false), 12000);
+    return () => clearTimeout(t);
+  }, [satState]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setSatSince(null); setSatDone(false); }, [parcel?.id]);   // inna działka – liczymy od nowa
+
   function answerSite(id, value) {
     const next = { ...request, answers: { ...request.answers, sites: { ...request.answers.sites, [id]: value } } };
     setRequest(next);
@@ -212,6 +232,7 @@ export default function App() {
     body = (
       <>
         {error && <p className="err pi-err" role="alert">{error}</p>}
+        <SatelliteStatus since={satSince} done={satDone} />
         <ResultView parcel={parcel} request={request} result={result} context={context} answers={request.answers}
           onAnswers={(answers) => setRequest({ ...request, answers })} onRecompute={() => recompute()}
           onSiteAnswer={answerSite} onFocus={(m) => setFocus({ ...m, t: Date.now() })} />
