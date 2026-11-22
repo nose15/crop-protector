@@ -16,11 +16,16 @@ GROUP_ORDER = {"retencja": 0, "agrotechnika": 1, "nawadnianie": 2}
 MAX_CARDS = 5
 
 BASE_LIMITATIONS = [
-    "Pogodę bierzemy z siatki o oczku ok. 10 km, więc lokalnych burz możemy nie widzieć.",
     "Dalej niż 16 dni naprzód nie ma prognozy pogody: pokazujemy, jak było w tych samych dniach w ostatnich 10 latach.",
     "Mapa terenu nie pokazuje przepustów pod drogami, więc rowy rozpoznajemy po kształcie.",
     "Daty siewu przyjmujemy typowe, chyba że podasz własną.",
 ]
+
+
+def weather_limitation(ctx: ParcelContext) -> str:
+    if ctx.meteo is not None and ctx.meteo.history_source == "nasa_power":
+        return "Pogodę bierzemy z siatki o oczku ok. 50 km (NASA POWER), więc lokalnych burz możemy nie widzieć."
+    return "Pogodę bierzemy z siatki o oczku ok. 10 km, więc lokalnych burz możemy nie widzieć."
 
 
 def water_limitation(answers: Answers) -> str:
@@ -42,7 +47,7 @@ def water_limitation(answers: Answers) -> str:
 SOIL_WORD = {"I": "bardzo lekka", "II": "lekka", "III": "średnia", "IV": "ciężka", "organic": "organiczna"}
 
 # przyjazne nazwy źródeł i stanów do komunikatów dla rolnika (techniczne nazwy zostają w provenance)
-SOURCE_PLAIN = {"Open-Meteo": "Pogoda", "IUNG": "Mapa gleby", "ISRIC": "Mapa właściwości gleby",
+SOURCE_PLAIN = {"Pogoda": "Pogoda", "Open-Meteo": "Pogoda", "IUNG": "Mapa gleby", "ISRIC": "Mapa właściwości gleby",
                 "NMT": "Mapa wysokości terenu", "OpenStreetMap": "Mapa rowów i cieków"}
 STATUS_PLAIN = {"timeout": "nie odpowiedziała na czas", "error": "była niedostępna",
                 "empty": "nie miała danych dla tej działki", "partial": "odpowiedziała tylko częściowo"}
@@ -133,7 +138,7 @@ def build(ctx: ParcelContext, req: RecommendRequest) -> AnalysisResult:
     if len(reasons) < 2:
         reasons.append("Ocena opiera się na mapach i danych pogodowych, bez obserwacji z pola.")
 
-    limitations = w.limitations + [water_limitation(req.answers)] + BASE_LIMITATIONS
+    limitations = w.limitations + [water_limitation(req.answers), weather_limitation(ctx)] + BASE_LIMITATIONS
     for r in hidden:
         limitations.append(f"Pokazujemy najważniejsze działania; pominęliśmy: {r.title or r.message}.")
 

@@ -18,7 +18,7 @@ from app import cache
 from app.models import ContextRequest, Parcel, ParcelContext, Provenance, Soil
 from app.sources.base import now_iso
 from app.sources.iung import IungSoilAdapter
-from app.sources.meteo import MeteoAdapter
+from app.sources.meteo import MeteoAdapter, primary
 from app.sources.satellite import SatelliteAdapter
 from app.sources.soilgrids import SoilGridsAdapter
 from app.sources.terrain import TerrainAdapter
@@ -62,6 +62,12 @@ async def gather(client: httpx.AsyncClient, parcel: Parcel, as_of: date, full: b
     res = {k: (t.result() if t in done else None) for k, t in tasks.items()}
     data = {k: (r.data if r else None) for k, r in res.items()}
     prov = {k: r.provenance for k, r in res.items() if r}
+    met = res.get("meteo")
+    if met and met.data:                        # skąd historia i czego brakuje (np. prognoza przy HTTP 429)
+        if met.data.notes:
+            met.provenance.note = "; ".join(met.data.notes)
+        if not met.data.complete or met.data.history_source != primary():
+            met.provenance.status = "partial"
     sat = res.get("satellite")
     if sat and sat.data and sat.data.get("partial"):
         sat.provenance.status = "partial"

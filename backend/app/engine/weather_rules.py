@@ -13,6 +13,7 @@ from app.engine.terrain_rules import RULES, _rec, pl, th
 from app.engine.weather import build_series
 from app.models import Cause, Evidence, NotEvaluated, ParcelContext, Recommendation, RecommendRequest
 
+MAX_LAG_DAYS = 7          # dłuższa luka przed D to „brak danych”, nie scenariusz
 MONTHS = {"01": "styczeń", "02": "luty", "03": "marzec", "04": "kwiecień", "05": "maj", "06": "czerwiec",
           "07": "lipiec", "08": "sierpień", "09": "wrzesień", "10": "październik", "11": "listopad", "12": "grudzień"}
 
@@ -29,6 +30,7 @@ class WeatherOutcome:
     uncertainty: list[str] = field(default_factory=list)
     limitations: list[str] = field(default_factory=list)
     taw_conf: str = "nie_oceniono"
+    meteo_lag_days: int = 0
 
 
 def _months_text(codes: list[str]) -> str:
@@ -44,6 +46,14 @@ def evaluate(ctx: ParcelContext, req: RecommendRequest, c2: Cause, c3: Cause | N
     d, to, crop = req.range.from_, req.range.to, req.crop
     c = cropmod.CROPS[crop]
     series = build_series(ctx.meteo, d, through=to)
+    # Opóźnienie danych (NASA POWER ok. 3 dni; Open-Meteo może nie dociągnąć ostatnich dni przy HTTP 429):
+    # stan wody liczymy na ostatni dzień z danymi, a dni do D przechodzą przez te same scenariusze co przyszłość.
+    lag = (d - series.last).days if series.last < d else 0
+    d_state = series.last if 0 < lag <= MAX_LAG_DAYS else d
+    if d_state != d:
+        out.limitations.append(f"Ostatnich {lag} dni przed początkiem okresu nie ma jeszcze w danych pogodowych; "
+                               f"stan wody liczymy na {d_state:%d.%m.%Y}, a dalej z pogody z lat ubiegłych.")
+        out.meteo_lag_days = lag
     if series.filled:
         out.limitations.append("W danych pogodowych brakowało kilku dni; uzupełniliśmy je wartościami z sąsiednich dni.")
     shares = _shares(ctx)
@@ -52,11 +62,11 @@ def evaluate(ctx: ParcelContext, req: RecommendRequest, c2: Cause, c3: Cause | N
     if c.get("no_kbw"):
         out.kbw = {"status": "brak_progu", "method": kbw.METHOD, "note": "Dla użytków zielonych rozporządzenie nie podaje progów KBW."}
     else:
-        out.kbw = kbw.status_at(series, d, crop, shares)
+        out.kbw = kbw.status_at(series, d_state, crop, shares)
 
     # --- TAW i stan w dniu D
     runs = balance.taw_runs(ctx, crop)
-    st = fc.state_at(series, crop, runs, d, to, req.sowing_date) if runs else None
+    st = fc.state_at(series, crop, runs, d_state, to, req.sowing_date) if runs else None
     if not runs:
         out.not_evaluated += [NotEvaluated(rule=r, reason="brak mapy gleby") for r in ("R15", "R7", "nawadnianie")]
     elif st is None:
@@ -81,8 +91,8 @@ def evaluate(ctx: ParcelContext, req: RecommendRequest, c2: Cause, c3: Cause | N
             "season_start_source": season_now.start_source, "taw_runs": [r.label for r in runs],
         }
         use_fc = bool(series.forecast) and d == ctx.as_of
-        out.forecast = fc.forecast(series, crop, runs, finals, seasons, d, to, ctx.parcel.area_ha, use_fc)
-        out.soil_water["series"] = fc.water_series(series, crop, runs, finals, seasons, d, to, use_fc)
+        out.forecast = fc.forecast(series, crop, runs, finals, seasons, d_state, to, ctx.parcel.area_ha, use_fc)
+        out.soil_water["series"] = fc.water_series(series, crop, runs, finals, seasons, d_state, to, use_fc)
         out.susceptibility = fc.susceptibility(series, crop, runs, shares, d, req.sowing_date, bool(c.get("no_kbw")))
         if out.taw_conf == "niska":
             out.uncertainty.append("Mapy gleby różnią się w ocenie, ile wody gleba może zatrzymać.")

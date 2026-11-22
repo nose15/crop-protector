@@ -299,7 +299,7 @@ def test_water_limitation_after_answers(context, answers, expected, present, abs
         assert part not in water[0]
     i = limitations.index(water[0])
     assert limitations[i + 1:i + 5] == FIXED_LIMITATIONS
-    assert BASE_LIMITATIONS == FIXED_LIMITATIONS
+    assert BASE_LIMITATIONS == FIXED_LIMITATIONS[1:]   # zdanie o siatce pogody zależy od źródła (weather_limitation)
     assert OLD_WATER not in limitations
     if answers.get("ditch_with_weir") is True:
         assert CULVERT in limitations

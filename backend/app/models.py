@@ -58,6 +58,9 @@ class Meteo(BaseModel):
     daily: list[MeteoDay]                   # archiwum (+ dni dociągnięte z prognozy do as_of)
     forecast: list[MeteoDay] = []           # dni po as_of (do 16)
     resolution: str
+    history_source: str | None = None       # "nasa_power" | "open_meteo" – skąd historia (decyzja 22.11.2026)
+    notes: list[str] = []                   # co wzięto z zapasu, czego brakuje (trafia do provenance.note)
+    complete: bool = True                   # False: potrzebna prognoza/ostatnie dni, ale Open-Meteo nie odpowiedziało
 
 
 class Quantiles(BaseModel):
