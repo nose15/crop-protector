@@ -51,7 +51,7 @@ Inny port backendu: `BACKEND_PORT=8001 npm run dev` przy `uvicorn … --port 800
 
 Wdrożenie opisuje [`render.yaml`](render.yaml): usługa Python (Frankfurt, `uvicorn`) i statyczny build Vite. Adres API trafia do frontendu jako `VITE_API_URL`. Gdy obok backendu leży zbudowany `frontend/dist`, jedna usługa serwuje też stronę. Dysk na Render jest ulotny; zapis startowy w repozytorium zostaje.
 
-Pełne pobranie jednej działki (dłuższe limity, 20 lat pogody, więcej scen satelitarnych) — tylko z sieci, w której Open-Meteo odpowiada:
+Pełne pobranie jednej działki (dłuższe limity, 20 lat pogody, więcej scen satelitarnych, a przy koncie CDSE także baza satelitarna z lat ubiegłych przez openEO – kilka minut):
 
 ```bash
 cd backend && python -m app.prefetch 046101_1.0445.7
@@ -110,6 +110,8 @@ FastAPI
 | `POST /api/recommend` | kontekst i prośba (uprawa, daty, odpowiedzi) | ocena, przyczyny, działania | zwykle poniżej 1 s |
 | `POST /api/report.pdf` | gotowy wynik z `/api/recommend` i opcjonalnie działka (gmina, obręb) | plik PDF do pobrania (`raport-<numer>-<data>.pdf`) | ok. 0,4 s |
 | `GET /api/health` | — | `{"status":"ok"}` | — |
+| `GET /api/status` | — | czy serwer działa, główne źródło pogody, czy jest konto CDSE, ile zadań openEO trwa; frontend odpytuje co 30 s i pokazuje „Serwer działa / nie odpowiada” w pasku | natychmiast (bez zapytań do usług) |
+| `GET /api/baseline/{numer}` | — | stan bazy satelitarnej działki: `gotowe`, `liczenie`, `blad`, `brak`, `nieskonfigurowane`; frontend odpytuje co 15 s, gdy porównanie jest w przygotowaniu, i sam przelicza wynik | natychmiast |
 
 `/api/context` woła źródła równolegle i urywa całość po 28 s. Każde źródło ma własny, krótszy limit. Awaria jednego nie blokuje reszty: w raporcie widać status (`ok`, `partial`, `timeout`, `error`, `empty`). Trafienie w cache nie wykonuje zapytań. Przy `?refresh=true` źródło, które teraz zawiedzie, może wrócić z poprzedniego zapisu (`provenance.mode = "cache"`).
 
@@ -126,6 +128,16 @@ Silnik, w skrócie:
 
 Pełny opis reguł, progów i przepływu: [`docs/analiza-silnika.md`](docs/analiza-silnika.md). Silnik pogodowy: [`docs/silnik-pogodowy.md`](docs/silnik-pogodowy.md).
 
+### Pewność wyniku (od 22.11.2026)
+
+Pewność całości to **najniższa** z pewności: danych pogodowych, zapasu wody w glebie (zgodność map IUNG i SoilGrids), głównych przyczyn i trzech pierwszych rad. Awaria źródła obniża tylko to, co z niego liczymy: brak mapy cieków daje „nie oceniono” dwóm radom o ciekach, a nie „niską” pewność całego raportu (wcześniej dowolne dwie awarie dawały „niską”, a „wysoka” była niemożliwa).
+
+Zdjęcia satelitarne z lat ubiegłych (openEO) działają jako niezależne potwierdzenie z pola: gdy przeczą bilansowi wody, pewność spada o stopień i raport radzi obejrzeć pole; gdy go potwierdzają (baza ≥ 5 lat) i rolnik odpowiedział, czy działka ma dreny albo rów z zastawką, pewność może wzrosnąć do „wysokiej”. Powody (najwyżej 4) są w wyniku i w raporcie.
+
+Porównanie dla nowej działki liczy się w tle 3–4 minuty (zmierzone 22.11.2026: 217 s dla 9 sezonów). Zadanie startuje już przy pobieraniu danych działki (`/api/context`), a gdy pierwszy wynik ma porównanie „w przygotowaniu”, frontend sam go przelicza, kiedy baza jest gotowa – rolnik nic nie klika. Działka przykładowa ma bazę w zapisie startowym (`backend/app/data/seed_cache/s2base_046101_1.0445.7.json.gz`), więc pokaz działa od razu.
+
+Konto CDSE dla openEO: zmienne `CDSE_CLIENT_ID` i `CDSE_CLIENT_SECRET` (serwer) albo `CDSE_REFRESH_TOKEN`; lokalnie wystarcza jednorazowe logowanie klientem `openeo` (token w profilu użytkownika). Bez konta aplikacja działa, tylko bez porównania satelitarnego. `KOWR_OPENEO_DISABLED=1` wyłącza openEO (testy). Graf procesów: `backend/app/data/openeo_s2_graph.json`, wygenerowany offline narzędziem `backend/tools/gen_openeo_graph.py` – backend nie importuje pakietu `openeo`.
+
 ## 4. Źródła i zakresy danych
 
 Wszystkie źródła są bezpłatne. KOWR nie dostarczał paczki danych; pobranie jest w adapterach.
@@ -134,12 +146,14 @@ Wszystkie źródła są bezpłatne. KOWR nie dostarczał paczki danych; pobranie
 | --- | --- | --- |
 | ULDK GUGiK | geometria działki z numeru lub punktu, cała Polska | granica, pole, TERYT |
 | Usługa geokodowania GUGiK (UUG) | adres → punkt, tylko dopasowania o dokładności ≥ 0,9 | wyszukiwanie „miejscowość, ulica numer” |
-| Open-Meteo, archiwum ERA5 / ERA5-Land i prognoza | opad, ET0 FAO Penman–Monteith, Tmax, Tmin; od 1 marca sprzed 10 lat (pełne pobranie: 20 lat) plus 16 dni prognozy | KBW, bilans, scenariusze |
+| **NASA POWER** (daily point, społeczność AG) – źródło główne historii od 22.11.2026 | opad, Tmax, Tmin, wiatr, punkt rosy, promieniowanie; ET0 FAO-56 Penman–Monteith liczone w aplikacji (`engine/et0.py`); od 1 marca sprzed 10 lat (pełne pobranie: 20 lat), siatka ~50 km, opóźnienie ok. 3 dni | KBW, bilans, scenariusze |
+| Open-Meteo, archiwum ERA5 / ERA5-Land i prognoza | zapas historii (gdy POWER zawiedzie) oraz ostatnie dni i 16 dni prognozy; przełącznik `KOWR_METEO_PRIMARY=open_meteo` odwraca kolejność | prognoza; zapas |
 | IUNG-PIB, WCS `Susza__katgl_landuse2024` | kategorie podatności gleb I–IV, siatka 5 m, stan użytkowania 2024 | próg KBW i przedział pojemności wodnej |
 | ISRIC SoilGrids 2.0 | pojemność polowa, punkt więdnięcia, piasek, ił, węgiel organiczny; 250 m | drugi przebieg pojemności; przy braku danych zostaje sam IUNG |
 | NMT GUGiK, WCS | model terenu 1 m, próbkowany co 2 m, działka i bufor 50 m | zagłębienia, rowy, odpływy, nachylenie |
 | OpenStreetMap przez Overpass | rowy i cieki w promieniu 500 m | pas zieleni przy cieku; timeout = „nie oceniono” |
-| Sentinel-2 L2A, Earth Search STAC | NDMI z 3 czystych scen sezonu (pasma 20 m, maska chmur SCL) | informacja o wodzie w roślinach; nie wchodzi do progu rekomendacji |
+| Sentinel-2 L2A, Earth Search STAC | NDMI z 3 czystych scen sezonu (pasma 20 m, maska chmur SCL) | informacja o wodzie w roślinach w panelu |
+| **Sentinel-2 L2A przez openEO (CDSE)**, zadanie wsadowe w tle | NDVI, NDMI i udział ważnych pikseli działki od 1.03.2018 do dziś (maska SCL, mediana w obrysie −10 m); jedno zadanie na działkę, kilka minut, zapis w cache | porównanie z tymi samymi dekadami w latach ubiegłych (odporny z-score); potwierdza albo podważa bilans wody i zmienia pewność |
 | Dz.U. 2019 poz. 739 | progi KBW: uprawa × kategoria gleby × okres | stała w `kbw_thresholds.yaml` |
 | Geoportal WMS i kafelki OSM | ortofotomapa, granice działek (KIEG), cieniowanie, mapa podkładowa | tylko obraz w przeglądarce |
 
@@ -157,7 +171,7 @@ Wynik i rekomendacje liczy aplikacja w chwili żądania, na danych z kontekstu. 
 - pogoda, IUNG, SoilGrids, NMT, cieki i lekki NDMI — równolegle, z limitami czasu;
 - w raporcie pole `provenance`: status, tryb (`live` albo `cache`), czas pobrania, data ważności danych, licencja.
 
-Archiwum Open-Meteo ma około 5 dni opóźnienia. Prognoza obejmuje 16 dni. Historia do rekomendacji jest ucinana na dniu analizy, więc ocena daty historycznej widzi tylko to, co było znane tego dnia.
+NASA POWER ma około 3 dni opóźnienia; ostatnie dni i prognozę 16 dni dokłada Open-Meteo. Gdy Open-Meteo nie odpowie (np. dzienny limit, HTTP 429), ocena i tak powstaje: stan wody liczymy na ostatni dzień z danymi (najwyżej 7 dni przed dniem analizy), a dalej działają scenariusze z poprzednich lat; raport mówi to wprost. Historia do rekomendacji jest ucinana na dniu analizy, więc ocena daty historycznej widzi tylko to, co było znane tego dnia.
 
 **Wcześniej, w repozytorium (nie liczą się same z siebie jako wynik):**
 
@@ -201,12 +215,13 @@ Pełna lista zależności przechodnich jest w `frontend/package-lock.json`.
 
 **Sztuczna inteligencja.** Prototyp jej nie używa. Ocena, przyczyny i teksty rad pochodzą z reguł i wzorów (FAO-56, KBW, analiza terenu). Pakiet `anthropic` został zostawiony pod ewentualny opis gotowego wyniku; bez klucza i bez wywołania nie bierze udziału w działaniu.
 
-**Usługi zewnętrzne:** ULDK, UUG, Open-Meteo, WCS IUNG, SoilGrids, WCS i WMS Geoportalu, Overpass, Earth Search (Element 84, obiekty COG Sentinela na S3), kafelki OSM. Wszystkie w darmowych warunkach publicznych, bez konta i bez klucza.
+**Usługi zewnętrzne:** ULDK, UUG, NASA POWER, Open-Meteo, openEO CDSE (konto CDSE, opcjonalnie), WCS IUNG, SoilGrids, WCS i WMS Geoportalu, Overpass, Earth Search (Element 84, obiekty COG Sentinela na S3), kafelki OSM. Wszystkie w darmowych warunkach publicznych, bez konta i bez klucza.
 
 ## 7. Licencje danych i warunki użycia
 
 | Dane | Warunki |
 | --- | --- |
+| NASA POWER | dane publiczne NASA, bez opłat, z podaniem źródła |
 | Open-Meteo (ERA5, ERA5-Land, prognoza) | [CC BY 4.0](https://open-meteo.com/en/terms). W raporcie jest atrybucja |
 | SoilGrids 2.0 | CC BY 4.0, ISRIC |
 | Sentinel-2 | Copernicus Sentinel data, bezpłatnie; aplikacja liczy wskaźnik (dane zmodyfikowane) |
@@ -228,8 +243,8 @@ Kod prototypu powstał w trakcie wydarzenia. Przeniesienie praw do rozwiązania 
 - **Bilans nie obejmuje** spływu powierzchniowego, podsiąku i drenów. Pogoda jest z siatki około 0,1°, więc lokalna burza może być niewidoczna.
 - **NMT nie zna przepustów.** Rów przy drodze bywa zamkniętą niecką; klasyfikacja po kształcie to poprawia, ale wymaga potwierdzenia na mapie. Na terenie płaskim kierunek spływu wyznacza mikrorzeźba.
 - **SoilGrids i Overpass często nie zdążą** (timeout). Wtedy pojemność wody pochodzi tylko z kategorii IUNG, a rada o pasie przy cieku dostaje status „nie oceniono”.
-- **Sentinel w trybie na żywo jest informacją**, nie werdyktem. Progi NDMI zależą od uprawy i fazy; porównanie z wieloma sezonami tej samej działki nie mieści się w lekkim pobraniu (ok. 2 MB).
-- **Limit Open-Meteo** jest dzienny i na adres IP (10 lat historii to rząd 280 wywołań z puli). Ze wspólnego IP hackathonu archiwum bywa niedostępne (HTTP 429). Cache i zapis startowy omijają ten limit dla już pobranych działek.
+- **Sentinel w trybie na żywo jest informacją**, nie werdyktem. O pewności decyduje dopiero porównanie z latami ubiegłymi z openEO, a ono wymaga konta CDSE i liczy się w tle (pierwszy raport nowej działki jest bez niego, kolejny już z nim). Płodozmian w latach bazowych daje flagę „baza mieszana” zamiast wniosku o suszy.
+- **Pogoda z NASA POWER ma siatkę ok. 50 km** (Open-Meteo ok. 10 km), więc lokalne burze są jeszcze mniej widoczne. Wybraliśmy ją, bo Open-Meteo ma dzienny limit na adres IP (HTTP 429 z sieci hackathonu i z tej maszyny 22.11.2026) i wtedy nowa działka nie dostawała żadnej oceny.
 - **Czas.** Rekomendacja po zebraniu danych jest poniżej sekundy. Zebranie nowej działki zwykle mieści się w 30 s, ale wolny NMT albo SoilGrids mogą dobić do bezpiecznika 28 s i wrócić z częściowym kontekstem (`partial: true`).
 - **Reguły sprawdzone na prawdziwej działce testowej** to głównie zastawka na rowie, pas trawy przy odpływie, oszczędzanie wody przed suchym okresem i nawadnianie. Pozostałe reguły (stok, gleba lekka, oczko, ciek) mają testy na danych sztucznych i czekają na kolejne działki.
 - **Brak opisu z modelu językowego.** Teksty rad są z szablonów reguł, wypełnionych liczbami z silnika.

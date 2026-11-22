@@ -120,12 +120,14 @@ Każdy adapter implementuje `SourceAdapter.fetch(parcel, as_of) -> AdapterResult
 | Adapter | Usługa | Limit | Uwagi |
 | --- | --- | --- | --- |
 | ULDK | `https://uldk.gugik.gov.pl/?request=GetParcelById&id=...&result=geom_wkb,teryt,voivodeship,county,commune,region,parcel&srid=4326` (też `GetParcelByXY`, `GetParcelByIdOrNr`) | 3 s | odpowiedź tekstowa: pierwsza linia `0` = OK, pola rozdzielone `\|`; limit ok. 200 zapytań/min |
-| Open-Meteo | `/v1/archive` (10 lat od 1 marca + bieżący rok) i `/v1/forecast` (`past_days`, `forecast_days=16`) | 5 s | `precipitation_sum`, `et0_fao_evapotranspiration`, `temperature_2m_max/min`; archiwum ma ok. 5 dni opóźnienia; CC BY 4.0 |
+| NASA POWER (od 22.11, główne) | `power.larc.nasa.gov/api/temporal/daily/point`, społeczność AG, jedno zapytanie na cały zakres | 14 s (cały adapter pogody) | `PRECTOTCORR, T2M_MAX, T2M_MIN, WS2M, T2MDEW, ALLSKY_SFC_SW_DWN`; ET0 FAO-56 PM liczone w `engine/et0.py`; -999 = brak; siatka ~50 km, opóźnienie ok. 3 dni; bez limitu dziennego |
+| Open-Meteo (zapas historii + prognoza) | `/v1/archive` i `/v1/forecast` (`past_days`, `forecast_days=16`) | w limicie adaptera pogody | zapas, gdy POWER zawiedzie; ostatnie dni i prognoza 16 dni; przy HTTP 429 ocena powstaje bez prognozy (`provenance.status = partial`); `KOWR_METEO_PRIMARY=open_meteo` odwraca kolejność; CC BY 4.0 |
 | IUNG gleba | WCS 2.0.1 `sgeo.iung.pl/geoserver/ows`, warstwa `Susza__katgl_landuse2024` (5 m, EPSG:2180) | 3 s | kody 1–4 = kategorie I–IV, 5 organiczne, 11–14 nierolnicze, 19/99 nieklasyfikowane; brak jawnej licencji |
 | SoilGrids | ISRIC REST v2.0 | 4 s | `wv0033`, `wv1500` (kwantyle), piasek, ił, SOC; 250 m |
 | NMT | WCS GUGiK `https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WCS/DigitalTerrainModel`, prototyp używa `DTM_PL-EVRF2007-NH`, `image/x-aaigrid` (SPEC podaje `DTM_PL-KRON86-NH_TIFF`) | 10 s | w testach SPEC GetCoverage nie odpowiadał w 45–90 s; bez NMT reguły terenowe dostają „nie oceniono” |
 | Cieki | Overpass OSM `waterway=*` w promieniu 500 m | 4 s | Overpass bywa przeciążony; ODbL |
 | Sentinel-2 | Earth Search STAC `sentinel-2-c1-l2a`, COG `nir08`, `swir16`, `scl` (pełne pobranie także `rededge1`, `red`, `nir`) | 15 s | tymczasowo, tylko informacja w panelu: tryb lekki NDMI z 3 scen (ok. 2 MB), szczegóły i koszty w `docs/sentinel.md`; odbicie = DN·10⁻⁴ − 0,1 |
+| openEO CDSE (od 22.11) | REST openEO 1.2 przez httpx, graf `app/data/openeo_s2_graph.json` (generator `tools/gen_openeo_graph.py`, bez pakietu `openeo`) | zadanie wsadowe w tle, do 30 min | NDVI/NDMI/VALID działki od 1.03.2018 do dziś, jedno zadanie na działkę, zapis `cache/s2base_<numer>.json.gz` (`app/baseline.py`); nigdy na ścieżce `/api/context`; konto: `CDSE_CLIENT_ID/SECRET`, `CDSE_REFRESH_TOKEN` albo lokalny token klienta openeo; `KOWR_OPENEO_DISABLED=1` w testach |
 | Mapy w przeglądarce | Geoportal WMS ORTO (`STYLES=default` w WMS 1.3.0), KIEG (granice działek), cieniowanie NMT | — | ładuje frontend, nie backend |
 
 Stałe (progi KBW z Dz.U. 2019 poz. 739, Kc, GDD, Zr, p, reguły) leżą w `backend/app/data/*.yaml`.
@@ -144,8 +146,9 @@ Wzory i progi: SPEC §3. W MVP:
 8. **Reguły** z `rules.yaml`, kody jak w SPEC §5.2. MVP: R2, R3, R6, R8, R11 (warunkowo), R14 (retencja); R1, R7, R15, R16 (agrotechnika); nawadnianie (zapas poniżej RAW w zakresie dat i woda nie jest wykluczona). Bramki G1–G4: reguła tylko z policzonym wskaźnikiem; nawadnianie zawsze ostatnie; brak danych to „nie oceniono”; inwestycje zawsze z dopiskiem o konsultacji z ODR, spółką wodną albo Wodami Polskimi. Raport ma 3–5 działań.
 
 Pewność: `wysoka | srednia | niska | nie_oceniono`. Pewność reguły to minimum pewności jej wejść, a pewność całości ma 2–4 powody.
+Od 22.11 (decyzja zespołu, wzór ze starej aplikacji): pewność całości = minimum z pogody, zapasu wody w glebie, głównych przyczyn i 3 pierwszych rad (`overall_confidence` w `engine/assemble.py`). Awaria źródła obniża tylko to, co z niego liczone (nie ma już kary „≥ 2 awarie → niska”). Porównanie satelitarne z lat ubiegłych (`engine/s2_anomaly.py`): przeczy bilansowi → o stopień niżej; potwierdza (baza ≥ 5 lat) i rolnik odpowiedział o drenach albo rowie z zastawką → „wysoka”.
 
-Stretch (nie robić przed MVP): SCS-CN i efekt „przed/po”, Ky, SPI/SPEI, anomalia S2 względem lat bazowych, GLO-30 jako zapas NMT, walidacja z tabelami SMSR, TWI.
+Stretch (nie robić przed MVP): SCS-CN i efekt „przed/po”, Ky, SPI/SPEI, GLO-30 jako zapas NMT, walidacja z tabelami SMSR, TWI. Anomalia S2 względem lat bazowych jest zrobiona od 22.11 (openEO).
 
 Testy obowiązkowe: KBW dla daty listopadowej (`poza_okresem`), bilans na fixtures daje stały wynik, niezmienniki rekomendacji (każda ma `evidence`, kolejność grup, dopisek G4, przedziały zamiast liczb tam, gdzie wynik jest niepewny).
 
