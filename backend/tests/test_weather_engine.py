@@ -1,12 +1,13 @@
 """Silnik pogodowy: KBW (ręczne sumy, listopad = poza_okresem), bilans FAO-56, fazy, prognoza, podatność."""
 
+import statistics
 from datetime import date, timedelta
 
 import pytest
 
 from app.engine import balance, crop as cropmod, forecast as fc, kbw
-from app.engine.weather import build_series
-from app.models import Meteo
+from app.engine.weather import build_series, shift_year
+from app.models import Meteo, MeteoDay
 from synthetic_meteo import generate
 
 
@@ -103,6 +104,98 @@ def test_susceptibility_counts_dry_years(synth):
 
 SNAPSHOT_BALANCE = (141.0, 74, 326.1)   # (max Dr mm, dni stresu, ΣETc,adj mm) dla syntetycznego 2025, TAW 150 mm
 
+CROP = "zboza_jare"
+TAW = 100.0
+# Kc poza sezonem i w fazie początkowej zbóż jarych to 0,3. ET0 = 1/0,3 daje ETc = 1,
+# więc p = p_tab + 0,16, a nie samo p_tab.
+ET0_ETC1 = 1 / 0.3
+
+
+def _inputs(frm, to, et0, *, daily_end=None, forecast=None):
+    meteo = const_meteo(date(2016, 3, 1), daily_end or to, p=0.0, et0=et0)
+    if forecast is not None:
+        meteo = meteo.model_copy(update={"forecast": forecast})
+    series = build_series(meteo, frm, through=to)
+    runs = [balance.TawRun("jeden przebieg", TAW)]
+    finals, seasons = fc.state_at(series, CROP, runs, frm, to, None)
+    return series, runs, finals, seasons
+
+
+def test_water_series_matches_daystate_raw():
+    """Szereg obejmuje from…to, a zapas i RAW są tymi samymi liczbami co DayState."""
+    frm, to = date(2026, 4, 10), date(2026, 4, 12)
+    p_tab = cropmod.CROPS[CROP]["p"]
+    series, runs, finals, seasons = _inputs(frm, to, ET0_ETC1)
+    pts = fc.water_series(series, CROP, runs, finals, seasons, frm, to, False)
+    scen = fc.scenario_days(series, frm, to, 1, False)
+    assert len(scen) == (to - frm).days
+    assert len(pts) == (to - frm).days + 1
+    assert [p["date"] for p in pts] == [(frm + timedelta(days=i)).isoformat() for i in range(len(pts))]
+    assert all(p["estimated"] is False for p in pts)
+    assert set(pts[0]) == {"date", "estimated", "level_mm", "raw_mm"}
+
+    start = fc.season_start(frm)
+    day0 = balance.simulate(balance.history_days(series, start, frm), CROP, seasons, TAW)[-1]
+    tail = balance.simulate(scen, CROP, seasons, TAW, dr0=day0.dr)
+    for pt, day in zip(pts, [day0, *tail]):
+        assert pt["level_mm"]["median"] == round(TAW - day.dr, 1)
+        assert pt["raw_mm"]["median"] == round(TAW - day.raw, 1)
+        assert day.raw != pytest.approx(p_tab * TAW)
+    assert day0.kc * ET0_ETC1 == pytest.approx(1.0)
+    assert day0.raw == pytest.approx((p_tab + 0.04 * (5 - 1)) * TAW)
+
+
+def test_water_series_from_equals_to():
+    frm = date(2026, 4, 10)
+    series, runs, finals, seasons = _inputs(frm, frm, ET0_ETC1)
+    pts = fc.water_series(series, CROP, runs, finals, seasons, frm, frm, False)
+    assert fc.scenario_days(series, frm, frm, 1, False) == []
+    assert len(pts) == 1 and pts[0]["date"] == frm.isoformat() and pts[0]["estimated"] is False
+
+
+def test_water_series_estimated_follows_source():
+    """Prognoza i analog są estymacją. Ta sama data w archiwum wygrywa z prognozą."""
+    frm, to = date(2026, 4, 10), date(2026, 4, 11)
+    p_tab = cropmod.CROPS[CROP]["p"]
+    fc_et0 = 8.0
+    fc_day = [MeteoDay(date=to, p_mm=0.0, et0_mm=fc_et0, tmax=20.0, tmin=10.0)]
+
+    series, runs, finals, seasons = _inputs(frm, to, ET0_ETC1, daily_end=frm, forecast=fc_day)
+    pts = fc.water_series(series, CROP, runs, finals, seasons, frm, to, True)
+    sim = balance.simulate(fc.scenario_days(series, frm, to, 1, True), CROP, seasons, TAW, dr0=finals[0].dr)
+    assert pts[1]["estimated"] is True
+    assert pts[1]["raw_mm"]["median"] == round(TAW - sim[0].raw, 1)
+
+    series, runs, finals, seasons = _inputs(frm, to, ET0_ETC1, forecast=fc_day)
+    pts = fc.water_series(series, CROP, runs, finals, seasons, frm, to, True)
+    sim = balance.simulate(fc.scenario_days(series, frm, to, 1, True), CROP, seasons, TAW, dr0=finals[0].dr)
+    assert pts[1]["estimated"] is False
+    assert pts[1]["raw_mm"]["median"] == round(TAW - sim[0].raw, 1)
+    p_fc = min(max(p_tab + 0.04 * (5 - sim[0].kc * fc_et0), 0.1), 0.8)
+    assert pts[1]["raw_mm"]["median"] != pytest.approx(round(TAW - p_fc * TAW, 1))
+
+    series, runs, finals, seasons = _inputs(frm, to, ET0_ETC1, daily_end=frm)
+    for k in range(1, 11):
+        src = shift_year(to, -k)
+        p, et0, tmax, tmin = series.days[src]
+        series.days[src] = (p, et0 + k * 0.35, tmax, tmin)
+    pts = fc.water_series(series, CROP, runs, finals, seasons, frm, to, False)
+    raws = []
+    for k in range(1, 11):
+        days = fc.scenario_days(series, frm, to, k, False)
+        sim = balance.simulate(days, CROP, seasons, TAW, dr0=finals[0].dr)
+        raws.append(TAW - sim[0].raw)
+    assert pts[1]["estimated"] is True
+    assert pts[1]["raw_mm"]["median"] == round(statistics.median(raws), 1)
+    assert raws[0] != raws[-1]
+
+
+def test_water_series_missing_donor_is_null():
+    frm, to = date(2026, 4, 10), date(2026, 4, 11)
+    series, runs, finals, seasons = _inputs(frm, to, ET0_ETC1, daily_end=frm)
+    del series.days[shift_year(to, -4)]
+    assert fc.water_series(series, CROP, runs, finals, seasons, frm, to, False) is None
+
 
 def test_real_fixture_regression():
     """Prawdziwy kontekst działki testowej (Open-Meteo pobrane 21.11.2026). Stały wynik = regresja silnika.
@@ -124,3 +217,7 @@ def test_real_fixture_regression():
     assert (res.susceptibility["n_ks"], res.susceptibility["n_kbw"]) == (7, 0)
     assert res.forecast["status"] == "ok" and res.forecast["stress_chance"]["n"] == 3
     assert res.forecast["forecast_days_used"] == 15
+    sw = res.state["soil_water"]["series"]
+    assert len(sw) == 183
+    assert sw[0]["date"] == "2026-11-21" and sw[-1]["date"] == "2027-05-22"
+    assert sw[0]["estimated"] is False

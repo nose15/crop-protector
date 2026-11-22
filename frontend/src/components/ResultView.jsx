@@ -20,6 +20,88 @@ const QUESTIONS = [
   ["irrigation_water", "Masz wodę do nawadniania (studnia, zbiornik, ciek)?"],
 ];
 
+function WaterChart({ series, taw }) {
+  if (!Array.isArray(series) || series.length === 0 || taw?.high == null) return null;
+  const yMax = taw.high;
+  const n = series.length;
+  const W = 420;
+  const H = 170;
+  const pad = { l: 44, r: 10, t: 18, b: 24 };
+  const X = (i) => pad.l + (n === 1 ? 0.5 : i / (n - 1)) * (W - pad.l - pad.r);
+  const Y = (v) => pad.t + (1 - Number(v) / yMax) * (H - pad.t - pad.b);
+  const long = n - 1 > 120;
+  const label = (iso) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("pl-PL", long
+      ? { month: "short", year: "numeric" }
+      : { day: "numeric", month: "short" });
+  };
+  const tickCount = Math.min(n, 5);
+  const ticks = [...new Set(Array.from({ length: tickCount }, (_, i) => (
+    n === 1 ? 0 : Math.round((i * (n - 1)) / (tickCount - 1))
+  )))];
+  const yTicks = [0, 1, 2, 3].map((k) => (yMax * k) / 3);
+  const line = (pts) => pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
+  const solid = [];
+  const dashed = [];
+  if (n > 1) {
+    let sRun = null;
+    let dRun = null;
+    for (let i = 0; i < n - 1; i++) {
+      const a = [X(i), Y(series[i].level_mm.median)];
+      const b = [X(i + 1), Y(series[i + 1].level_mm.median)];
+      if (series[i].estimated && series[i + 1].estimated) {
+        sRun = null;
+        if (!dRun) { dRun = [a, b]; dashed.push(dRun); } else dRun.push(b);
+      } else {
+        dRun = null;
+        if (!sRun) { sRun = [a, b]; solid.push(sRun); } else sRun.push(b);
+      }
+    }
+  }
+  const raw = series.map((p, i) => [X(i), Y(p.raw_mm.median)]);
+  const band = n > 1 ? [
+    ...series.map((p, i) => [X(i), Y(p.level_mm.low)]),
+    ...series.map((p, i) => [X(n - 1 - i), Y(series[n - 1 - i].level_mm.high)]),
+  ] : [];
+  return (
+    <>
+      <svg className="chart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img"
+        aria-label="Poziom wody, estymacja i próg RAW, w milimetrach">
+        {yTicks.map((v) => (
+          <g key={v}>
+            <line x1={pad.l} x2={W - pad.r} y1={Y(v)} y2={Y(v)} stroke="#E3E8E3" />
+            <text x={pad.l - 6} y={Y(v) + 4} textAnchor="end">{fmt(v)}</text>
+          </g>
+        ))}
+        <text x="4" y="12">mm</text>
+        {band.length > 0 && <path d={line(band)} fill="var(--water)" fillOpacity="0.16" stroke="none" />}
+        {n > 1
+          ? <path d={line(raw)} fill="none" stroke="var(--amber)" strokeWidth="2.2" vectorEffect="non-scaling-stroke" />
+          : <circle cx={raw[0][0]} cy={raw[0][1]} r="3.2" fill="var(--amber)" />}
+        {solid.map((pts, i) => (
+          <path key={`s${i}`} d={line(pts)} fill="none" stroke="var(--water)" strokeWidth="2.6" vectorEffect="non-scaling-stroke" />
+        ))}
+        {dashed.map((pts, i) => (
+          <path key={`d${i}`} d={line(pts)} fill="none" stroke="var(--water)" strokeWidth="2.6" strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
+        ))}
+        {n === 1 && <circle cx={X(0)} cy={Y(series[0].level_mm.median)} r="3.2" fill="var(--water)" />}
+        {ticks.map((i, k) => (
+          <text key={series[i].date} x={X(i)} y={H - 6}
+            textAnchor={ticks.length === 1 ? "middle" : k === 0 ? "start" : k === ticks.length - 1 ? "end" : "middle"}>
+            {label(series[i].date)}
+          </text>
+        ))}
+      </svg>
+      <div className="legend">
+        <span><i className="line" aria-hidden="true" />poziom wody</span>
+        <span><i className="dash" aria-hidden="true" />estymowany poziom</span>
+        <span><i className="line raw" aria-hidden="true" />RAW</span>
+      </div>
+    </>
+  );
+}
+
 function Gauge({ g }) {
   const label = `Zostało ${fmt(g.taw - g.dr)} z ${fmt(g.taw)} mm wody dostępnej dla roślin. Brakuje ${fmt(g.dr)} mm`
     + (g.raw != null ? `, rośliny cierpią przy braku powyżej ${fmt(g.raw)} mm.` : ".");
@@ -220,7 +302,7 @@ export default function ResultView({ parcel, request, result, context, answers, 
         </div>
       </div>
 
-      <details className="det"><summary>Woda na polu<span className="sub">{g ? (g.stressed ? "brakuje" : "zapas jest") : "—"}</span></summary>
+      <details className="det" open><summary>Woda na polu<span className="sub">{g ? (g.stressed ? "brakuje" : "zapas jest") : "—"}</span></summary>
         <div className="body">
           <dl className="kv">
             {g && <><dt>Woda w glebie teraz</dt><dd>{g.stressed ? "poniżej granicy stresu" : "powyżej granicy stresu"}</dd></>}
@@ -230,6 +312,13 @@ export default function ResultView({ parcel, request, result, context, answers, 
             {f?.status === "ok" && f.days_to_raw?.n > 0 && <><dt>Zapas może się skończyć</dt><dd>za ok. {fmt(f.days_to_raw.median)} dni</dd></>}
             {f?.status === "ok" && f.deficit_m3?.high >= 1 && <><dt>Ile wody może zabraknąć</dt><dd>do ok. {fmt(f.deficit_m3.high)} m³ na działkę</dd></>}
           </dl>
+          {Array.isArray(sw?.series) && sw.series.length > 0 && sw.taw_mm?.high != null && (
+            <div className="timeline inpanel">
+              <div className="tl-body">
+                <WaterChart series={sw.series} taw={sw.taw_mm} />
+              </div>
+            </div>
+          )}
           {s?.per_year && (
             <p className="small">Lata z niedoborem wody w kluczowym okresie: {s.per_year.filter((y) => (y.stress_days_critical ?? 0) >= 10).map((y) => y.year).join(", ") || "brak"}.</p>
           )}

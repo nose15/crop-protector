@@ -181,6 +181,15 @@ class KbwState(_Open):
     season: list[KbwSeasonRow] | None = None
 
 
+class WaterPoint(_Open):
+    """Jeden dzień szeregu zapasu wody. level_mm i raw_mm to milimetry zapasu."""
+
+    date: date
+    estimated: bool
+    level_mm: Interval
+    raw_mm: Interval
+
+
 class SoilWater(_Open):
     """Zapas wody w glebie w dniu analizy. Przedziały to median / low / high."""
 
@@ -196,6 +205,7 @@ class SoilWater(_Open):
     safe_level_pct: float | None = None
     season_start_source: str | None = None
     taw_runs: list[str] = []
+    series: list[WaterPoint] | None = None
 
 
 class AnalysisState(_Open):

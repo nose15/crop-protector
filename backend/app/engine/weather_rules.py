@@ -82,6 +82,7 @@ def evaluate(ctx: ParcelContext, req: RecommendRequest, c2: Cause, c3: Cause | N
         }
         use_fc = bool(series.forecast) and d == ctx.as_of
         out.forecast = fc.forecast(series, crop, runs, finals, seasons, d, to, ctx.parcel.area_ha, use_fc)
+        out.soil_water["series"] = fc.water_series(series, crop, runs, finals, seasons, d, to, use_fc)
         out.susceptibility = fc.susceptibility(series, crop, runs, shares, d, req.sowing_date, bool(c.get("no_kbw")))
         if out.taw_conf == "niska":
             out.uncertainty.append("Mapy gleby różnią się w ocenie, ile wody gleba może zatrzymać.")

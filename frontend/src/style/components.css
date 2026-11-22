@@ -220,6 +220,13 @@ table.thr tr.now td, table.thr tr.now th { box-shadow: inset 0 2px 0 var(--ink),
 .tl-body { margin-top: 6px; }
 .timeline.docked .tl-body .chart { height: 138px; }
 .timeline.inpanel .tl-body .chart { height: 170px; }
+.timeline.inpanel .legend i.line,
+.timeline.inpanel .legend i.dash {
+  box-sizing: content-box; width: 18px; height: 0; border-radius: 0; background: none;
+  border-top: 2.5px solid var(--water);
+}
+.timeline.inpanel .legend i.dash { border-top-style: dashed; }
+.timeline.inpanel .legend i.raw { border-top-color: var(--amber); }
 
 /* nakładki */
 .overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(10, 20, 14, .55); display: grid; place-items: center; padding: 24px; }

@@ -48,21 +48,33 @@ def _p_et0(v) -> bool:
     return v is not None and v[0] is not None and v[1] is not None
 
 
+def day_weather(series: Series, t: date, k: int, d: date, use_forecast: bool):
+    """Pogoda doby t i etykieta źródła. Kolejność: archiwum, prognoza, analog. Brak P i ET0 → None."""
+    v = series.get(t)
+    if _p_et0(v):
+        return "archiwum", v[0], v[1]
+    if use_forecast:
+        v = series.forecast.get(t)
+        if _p_et0(v):
+            return "prognoza", v[0], v[1]
+    src = shift_year(t, -k)
+    while src > d:
+        src = shift_year(src, -1)
+    v = series.get(src)
+    if not _p_et0(v):
+        return None
+    return "analog", v[0], v[1]
+
+
 def scenario_days(series: Series, d: date, to: date, k: int, use_forecast: bool) -> list | None:
     """Pogoda doby t: archiwum, potem prognoza, potem analog cofany całymi latami aż data ≤ D."""
     out, t = [], d + timedelta(days=1)
     while t <= to:
-        v = series.get(t)
-        if not _p_et0(v):
-            v = series.forecast.get(t) if use_forecast else None
-        if not _p_et0(v):
-            src = shift_year(t, -k)
-            while src > d:
-                src = shift_year(src, -1)
-            v = series.get(src)
-            if not _p_et0(v):
-                return None
-        out.append((t, v[0], v[1]))
+        w = day_weather(series, t, k, d, use_forecast)
+        if w is None:
+            return None
+        _, p, et0 = w
+        out.append((t, p, et0))
         t += timedelta(days=1)
     return out
 
@@ -105,6 +117,54 @@ def forecast(series: Series, crop: str, runs: list[balance.TawRun], finals, seas
         "deficit_m3": {k: (round(v * area_ha * 10) if v is not None else None) for k, v in deficit.items()},
         "taw_run_used_for_chance": runs[mid].label,
     }
+
+
+def _mm_point(when: date, estimated: bool, levels: list[float], raws: list[float]) -> dict:
+    return {
+        "date": when.isoformat(),
+        "estimated": estimated,
+        "level_mm": balance.interval(levels),
+        "raw_mm": balance.interval(raws),
+    }
+
+
+def water_series(series: Series, crop: str, runs: list[balance.TawRun], finals, seasons, d: date, to: date,
+                 use_forecast: bool) -> list[dict] | None:
+    """Zapas (TAW − Dr) i próg RAW (TAW − DayState.raw) od `d` do `to` włącznie.
+
+    Dzień `d` bierze stany końcowe `state_at` (to nie jest scenariusz). Dni późniejsze: na każdym
+    przebiegu TAW mediana po 10 ścieżkach `simulate`, potem `interval` po przebiegach. Sezony są
+    tym słownikiem, który zwrócił `state_at`. Brak pogody na którykolwiek dzień → None.
+    """
+    points = [_mm_point(
+        d, False,
+        [r.taw_mm - f.dr for f, r in zip(finals, runs)],
+        [r.taw_mm - f.raw for f, r in zip(finals, runs)],
+    )]
+    if d == to:
+        return points
+    paths = []
+    for k in range(1, N_SCEN + 1):
+        days = scenario_days(series, d, to, k, use_forecast)
+        if days is None:
+            return None
+        paths.append(days)
+    n = len(paths[0])
+    level_med = [[] for _ in range(n)]
+    raw_med = [[] for _ in range(n)]
+    for i, r in enumerate(runs):
+        sims = [balance.simulate(days, crop, seasons, r.taw_mm, dr0=finals[i].dr) for days in paths]
+        for j in range(n):
+            level_med[j].append(statistics.median([r.taw_mm - sim[j].dr for sim in sims]))
+            raw_med[j].append(statistics.median([r.taw_mm - sim[j].raw for sim in sims]))
+    t = d + timedelta(days=1)
+    for j in range(n):
+        w = day_weather(series, t, 1, d, use_forecast)
+        if w is None:
+            return None
+        points.append(_mm_point(t, w[0] != "archiwum", level_med[j], raw_med[j]))
+        t += timedelta(days=1)
+    return points
 
 
 def susceptibility(series: Series, crop: str, runs: list[balance.TawRun], shares: dict | None, d: date,
