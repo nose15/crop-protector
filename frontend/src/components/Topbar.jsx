@@ -38,7 +38,7 @@ const Topbar = forwardRef(function Topbar(
             <input value={q} onChange={(e) => onQ(e.target.value)} spellCheck="false"
               placeholder="np. 046101_1.0445.7, Krzywiń 134/2 albo Krzywiń, Rynek 1"
               aria-describedby="search-help" />
-            <span id="search-help" className="sr-only">Wpisz numer działki, obręb i numer działki albo adres. Możesz też kliknąć działkę na mapie.</span>
+            <span id="search-help" className="sr-only">Wpisz numer działki albo adres. Możesz też kliknąć działkę na mapie.</span>
           </label>
         )}
         <label className="field">
